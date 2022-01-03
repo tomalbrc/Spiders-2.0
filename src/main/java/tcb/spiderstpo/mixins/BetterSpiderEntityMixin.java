@@ -60,7 +60,7 @@ public abstract class BetterSpiderEntityMixin extends Monster implements IClimbe
 
 	@Inject(method = "defineSynchedData()V", at = @At("HEAD"))
 	private void onRegisterData(CallbackInfo ci) {
-		this.pathFinderDebugPreview = Config.PATH_FINDER_DEBUG_PREVIEW.get();
+		this.pathFinderDebugPreview = Config.getConfig().isPathFinderDebugPreview();
 	}
 
 	@Redirect(method = "registerGoals()V", at = @At(
@@ -89,7 +89,7 @@ public abstract class BetterSpiderEntityMixin extends Monster implements IClimbe
 
 	@Override
 	public boolean canAttachToSide(Direction side) {
-		if(!this.jumping && Config.PREVENT_CLIMBING_IN_RAIN.get() && side.getAxis() != Direction.Axis.Y && this.level.isRainingAt(new BlockPos(this.getX(), this.getY() + this.getBbHeight() * 0.5f,  this.getZ()))) {
+		if(!this.jumping && Config.getConfig().isPreventClimbingInRain() && side.getAxis() != Direction.Axis.Y && this.level.isRainingAt(new BlockPos(this.getX(), this.getY() + this.getBbHeight() * 0.5f,  this.getZ()))) {
 			return false;
 		}
 		return true;
@@ -99,7 +99,7 @@ public abstract class BetterSpiderEntityMixin extends Monster implements IClimbe
 	public float getBlockSlipperiness(BlockPos pos) {
 		BlockState offsetState = this.level.getBlockState(pos);
 
-		float slipperiness = offsetState.getBlock().getFriction(offsetState, this.level, pos, this) * 0.91f;
+		float slipperiness = offsetState.getBlock().getFriction() * 0.91f;
 
 		if(offsetState.is(ModTags.NON_CLIMBABLE)) {
 			slipperiness = 1 - (1 - slipperiness) * 0.25f;
@@ -111,7 +111,7 @@ public abstract class BetterSpiderEntityMixin extends Monster implements IClimbe
 	@Override
 	public float getPathingMalus(BlockGetter cache, Mob entity, BlockPathTypes nodeType, BlockPos pos, Vec3i direction, Predicate<Direction> sides) {
 		if(direction.getY() != 0) {
-			if(Config.PREVENT_CLIMBING_IN_RAIN.get() && !sides.test(Direction.UP) && !sides.test(Direction.DOWN) && this.level.isRainingAt(pos)) {
+			if(Config.getConfig().isPreventClimbingInRain() && !sides.test(Direction.UP) && !sides.test(Direction.DOWN) && this.level.isRainingAt(pos)) {
 				return -1.0f;
 			}
 

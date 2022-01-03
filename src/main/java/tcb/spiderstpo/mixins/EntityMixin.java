@@ -1,5 +1,8 @@
 package tcb.spiderstpo.mixins;
 
+import net.minecraft.world.entity.EntityDimensions;
+import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.level.Level;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
@@ -13,12 +16,29 @@ import net.minecraft.world.entity.MoverType;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.Vec3;
+import tcb.spiderstpo.common.CommonEventHandlers;
 import tcb.spiderstpo.common.entity.mob.IEntityMovementHook;
 import tcb.spiderstpo.common.entity.mob.IEntityReadWriteHook;
 import tcb.spiderstpo.common.entity.mob.IEntityRegisterDataHook;
 
+import java.util.Optional;
+
 @Mixin(Entity.class)
 public abstract class EntityMixin implements IEntityMovementHook, IEntityReadWriteHook, IEntityRegisterDataHook {
+
+	@Inject(method = "<init>", at = @At("RETURN"))
+	private void setDimensions(EntityType entityType, Level level, CallbackInfo ci) {
+		final Optional<EntityDimensions> entityDimensions = CommonEventHandlers.onEntitySize((Entity) (Object) this);
+		entityDimensions.ifPresent(value -> this.dimensions = value);
+	}
+
+	@Inject(method = "refreshDimensions", at = @At(value = "INVOKE_ASSIGN", target = "Lnet/minecraft/world/entity/Entity;getDimensions(Lnet/minecraft/world/entity/Pose;)Lnet/minecraft/world/entity/EntityDimensions;"))
+	private void setDimensionsNew(CallbackInfo ci) {
+		final Optional<EntityDimensions> entityDimensions = CommonEventHandlers.onEntitySize((Entity) (Object) this);
+		entityDimensions.ifPresent(value -> this.dimensions = value);
+	}
+
+
 	@Inject(method = "move", at = @At("HEAD"), cancellable = true)
 	private void onMovePre(MoverType type, Vec3 pos, CallbackInfo ci) {
 		if(this.onMove(type, pos, true)) {
@@ -86,13 +106,17 @@ public abstract class EntityMixin implements IEntityMovementHook, IEntityReadWri
 	@Shadow(prefix = "shadow$")
 	private void shadow$defineSynchedData() { }
 
+	@Shadow private EntityDimensions dimensions;
+
+	@Shadow public abstract boolean isFree(double d, double e, double f);
+
 	@Redirect(method = "<init>*", at = @At(
 			value = "INVOKE",
 			target = "Lnet/minecraft/world/entity/Entity;defineSynchedData()V"
 			))
 	private void onRegisterData(Entity _this) {
 		this.shadow$defineSynchedData();
-		
+
 		if(_this == (Object) this) {
 			this.onRegisterData();
 		}

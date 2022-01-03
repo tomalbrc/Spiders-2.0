@@ -11,6 +11,7 @@ import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.server.level.ChunkMap;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.tags.BlockTags;
 import net.minecraft.util.Mth;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.*;
@@ -19,9 +20,9 @@ import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.ai.navigation.PathNavigation;
 import net.minecraft.world.entity.monster.Spider;
-import net.minecraft.world.level.BlockCollisions;
 import net.minecraft.world.level.CollisionGetter;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.FenceGateBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.material.FluidState;
 import net.minecraft.world.level.pathfinder.Node;
@@ -42,6 +43,9 @@ import tcb.spiderstpo.common.Matrix4f;
 import tcb.spiderstpo.common.PredicateBlockCollisions;
 import tcb.spiderstpo.common.entity.mob.*;
 import tcb.spiderstpo.common.entity.movement.*;
+import tcb.spiderstpo.mixins.access.ChunkMapAccess;
+import tcb.spiderstpo.mixins.access.ServerEntityAccess;
+import tcb.spiderstpo.mixins.access.TrackedEntityAccess;
 
 import javax.annotation.Nullable;
 import java.lang.invoke.MethodHandles;
@@ -434,70 +438,73 @@ public abstract class ClimberEntityMixin extends PathfinderMob implements IClimb
     @Override
     public void onTick() {
         if (!this.level.isClientSide && this.level instanceof ServerLevel) {
-            ChunkMap.TrackedEntity entityTracker = ((ServerLevel) this.level).getChunkSource().chunkMap.entityMap.get(this.getId());
+            ChunkMap.TrackedEntity entityTracker = ((ChunkMapAccess) ((ServerLevel) this.level).getChunkSource().chunkMap).getEntityMap().get(this.getId());
 
             //Prevent premature syncing of position causing overly smoothed movement
-            if (entityTracker != null && entityTracker.serverEntity.tickCount % entityTracker.serverEntity.updateInterval == 0) {
-                Orientation orientation = this.getOrientation();
+            if (entityTracker != null) {
+                final ServerEntityAccess serverEntity = (ServerEntityAccess) ((TrackedEntityAccess) entityTracker).getServerEntity();
+                if (serverEntity.getTickCount() % serverEntity.getUpdateInterval() == 0) {
+                    Orientation orientation = this.getOrientation();
 
-                Vec3 look = orientation.getGlobal(this.getYRot(), this.getXRot());
-                this.entityData.set(ROTATION_BODY, new Rotations((float) look.x, (float) look.y, (float) look.z));
+                    Vec3 look = orientation.getGlobal(this.getYRot(), this.getXRot());
+                    this.entityData.set(ROTATION_BODY, new Rotations((float) look.x, (float) look.y, (float) look.z));
 
-                look = orientation.getGlobal(this.yHeadRot, 0.0f);
-                this.entityData.set(ROTATION_HEAD, new Rotations((float) look.x, (float) look.y, (float) look.z));
+                    look = orientation.getGlobal(this.yHeadRot, 0.0f);
+                    this.entityData.set(ROTATION_HEAD, new Rotations((float) look.x, (float) look.y, (float) look.z));
 
-                if (this.shouldTrackPathingTargets()) {
-                    if (this.xxa != 0) {
-                        Vec3 forwardVector = orientation.getGlobal(this.getYRot(), 0);
-                        Vec3 strafeVector = orientation.getGlobal(this.getYRot() - 90.0f, 0);
+                    if (this.shouldTrackPathingTargets()) {
+                        if (this.xxa != 0) {
+                            Vec3 forwardVector = orientation.getGlobal(this.getYRot(), 0);
+                            Vec3 strafeVector = orientation.getGlobal(this.getYRot() - 90.0f, 0);
 
-                        Vec3 offset = forwardVector.scale(this.zza).add(strafeVector.scale(this.xxa)).normalize();
+                            Vec3 offset = forwardVector.scale(this.zza).add(strafeVector.scale(this.xxa)).normalize();
 
-                        this.entityData.set(MOVEMENT_TARGET_X, (float) (this.getX() + offset.x));
-                        this.entityData.set(MOVEMENT_TARGET_Y, (float) (this.getY() + this.getBbHeight() * 0.5f + offset.y));
-                        this.entityData.set(MOVEMENT_TARGET_Z, (float) (this.getZ() + offset.z));
-                    } else {
-                        this.entityData.set(MOVEMENT_TARGET_X, (float) this.getMoveControl().getWantedX());
-                        this.entityData.set(MOVEMENT_TARGET_Y, (float) this.getMoveControl().getWantedY());
-                        this.entityData.set(MOVEMENT_TARGET_Z, (float) this.getMoveControl().getWantedZ());
-                    }
+                            this.entityData.set(MOVEMENT_TARGET_X, (float) (this.getX() + offset.x));
+                            this.entityData.set(MOVEMENT_TARGET_Y, (float) (this.getY() + this.getBbHeight() * 0.5f + offset.y));
+                            this.entityData.set(MOVEMENT_TARGET_Z, (float) (this.getZ() + offset.z));
+                        } else {
+                            this.entityData.set(MOVEMENT_TARGET_X, (float) this.getMoveControl().getWantedX());
+                            this.entityData.set(MOVEMENT_TARGET_Y, (float) this.getMoveControl().getWantedY());
+                            this.entityData.set(MOVEMENT_TARGET_Z, (float) this.getMoveControl().getWantedZ());
+                        }
 
-                    Path path = this.getNavigation().getPath();
-                    if (path != null) {
-                        int i = 0;
+                        Path path = this.getNavigation().getPath();
+                        if (path != null) {
+                            int i = 0;
 
-                        for (EntityDataAccessor<Optional<BlockPos>> pathingTarget : PATHING_TARGETS) {
-                            EntityDataAccessor<Direction> pathingSide = PATHING_SIDES.get(i);
+                            for (EntityDataAccessor<Optional<BlockPos>> pathingTarget : PATHING_TARGETS) {
+                                EntityDataAccessor<Direction> pathingSide = PATHING_SIDES.get(i);
 
-                            if (path.getNextNodeIndex() + i < path.getNodeCount()) {
-                                Node point = path.getNode(path.getNextNodeIndex() + i);
+                                if (path.getNextNodeIndex() + i < path.getNodeCount()) {
+                                    Node point = path.getNode(path.getNextNodeIndex() + i);
 
-                                this.entityData.set(pathingTarget, Optional.of(new BlockPos(point.x, point.y, point.z)));
+                                    this.entityData.set(pathingTarget, Optional.of(new BlockPos(point.x, point.y, point.z)));
 
-                                if (point instanceof DirectionalPathPoint) {
-                                    Direction dir = ((DirectionalPathPoint) point).getPathSide();
+                                    if (point instanceof DirectionalPathPoint) {
+                                        Direction dir = ((DirectionalPathPoint) point).getPathSide();
 
-                                    if (dir != null) {
-                                        this.entityData.set(pathingSide, dir);
-                                    } else {
-                                        this.entityData.set(pathingSide, Direction.DOWN);
+                                        if (dir != null) {
+                                            this.entityData.set(pathingSide, dir);
+                                        } else {
+                                            this.entityData.set(pathingSide, Direction.DOWN);
+                                        }
                                     }
+
+                                } else {
+                                    this.entityData.set(pathingTarget, Optional.empty());
+                                    this.entityData.set(pathingSide, Direction.DOWN);
                                 }
 
-                            } else {
+                                i++;
+                            }
+                        } else {
+                            for (EntityDataAccessor<Optional<BlockPos>> pathingTarget : PATHING_TARGETS) {
                                 this.entityData.set(pathingTarget, Optional.empty());
-                                this.entityData.set(pathingSide, Direction.DOWN);
                             }
 
-                            i++;
-                        }
-                    } else {
-                        for (EntityDataAccessor<Optional<BlockPos>> pathingTarget : PATHING_TARGETS) {
-                            this.entityData.set(pathingTarget, Optional.empty());
-                        }
-
-                        for (EntityDataAccessor<Direction> pathingSide : PATHING_SIDES) {
-                            this.entityData.set(pathingSide, Direction.DOWN);
+                            for (EntityDataAccessor<Direction> pathingSide : PATHING_SIDES) {
+                                this.entityData.set(pathingSide, Direction.DOWN);
+                            }
                         }
                     }
                 }
@@ -580,7 +587,7 @@ public abstract class ClimberEntityMixin extends PathfinderMob implements IClimb
     @Override
     public float getBlockSlipperiness(BlockPos pos) {
         BlockState offsetState = this.level.getBlockState(pos);
-        return offsetState.getBlock().getFriction(offsetState, this.level, pos, this) * 0.91f;
+        return offsetState.getBlock().getFriction() * 0.91f;
     }
 
     private void updateOffsetsAndOrientation() {
@@ -767,19 +774,28 @@ public abstract class ClimberEntityMixin extends PathfinderMob implements IClimb
             return 0;
         }
 
-        AttributeInstance gravity = this.getAttribute(net.minecraftforge.common.ForgeMod.ENTITY_GRAVITY.get());
+        // Fabric/Vanilla does not have a gravity attribute.
 
-        boolean isFalling = this.getDeltaMovement().y <= 0.0D;
+//        AttributeInstance gravity = this.getAttribute(net.minecraftforge.common.ForgeMod.ENTITY_GRAVITY.get());
+//
+//        boolean isFalling = this.getDeltaMovement().y <= 0.0D;
+//
+//        if (isFalling && this.hasEffect(MobEffects.SLOW_FALLING)) {
+//            if (!gravity.hasModifier(SLOW_FALLING)) {
+//                gravity.addTransientModifier(SLOW_FALLING);
+//            }
+//        } else if (gravity.hasModifier(SLOW_FALLING)) {
+//            gravity.removeModifier(SLOW_FALLING);
+//        }
 
+        double result = 0.08;
+
+        boolean isFalling = this.getDeltaMovement().y <= 0.0;
         if (isFalling && this.hasEffect(MobEffects.SLOW_FALLING)) {
-            if (!gravity.hasModifier(SLOW_FALLING)) {
-                gravity.addTransientModifier(SLOW_FALLING);
-            }
-        } else if (gravity.hasModifier(SLOW_FALLING)) {
-            gravity.removeModifier(SLOW_FALLING);
+            result = 0.01;
         }
 
-        return gravity.getValue();
+        return result;
     }
 
     private Vec3 getStickingForce(Pair<Direction, Vec3> walkingSide) {
@@ -815,8 +831,6 @@ public abstract class ClimberEntityMixin extends PathfinderMob implements IClimb
             }
 
             this.hasImpulse = true;
-            net.minecraftforge.common.ForgeHooks.onLivingJump(this);
-
             return true;
         }
 
@@ -1063,7 +1077,7 @@ public abstract class ClimberEntityMixin extends PathfinderMob implements IClimb
             BlockPos posDown = pos.below();
             BlockState stateDown = this.level.getBlockState(posDown);
 
-            if (stateDown.collisionExtendsVertically(this.level, posDown, this)) {
+            if (stateDown.is(BlockTags.FENCES) || stateDown.is(BlockTags.WALLS) || stateDown.getBlock() instanceof FenceGateBlock) {
                 return posDown;
             }
         }

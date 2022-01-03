@@ -1,31 +1,15 @@
 package tcb.spiderstpo.common;
 
-import net.minecraftforge.fml.ModLoadingContext;
-import net.minecraftforge.fml.common.Mod;
-import net.minecraftforge.fml.config.ModConfig;
-import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
-import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
-import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
-import tcb.spiderstpo.client.ClientSetup;
 
-@Mod("spiderstpo")
-public class SpiderMod {
-	public SpiderMod() {
-		ModLoadingContext loadingContext = ModLoadingContext.get();
+import net.fabricmc.api.ModInitializer;
+import net.minecraft.tags.Tag;
+import net.minecraft.world.level.block.Block;
 
-		loadingContext.registerConfig(ModConfig.Type.COMMON, Config.COMMON, "spiders-2.0.toml");
+public class SpiderMod implements ModInitializer {
 
-		FMLJavaModLoadingContext fmlContext = FMLJavaModLoadingContext.get();
-
-		fmlContext.getModEventBus().addListener(this::onCommonSetup);
-		fmlContext.getModEventBus().addListener(this::onClientSetup);
-	}
-
-	private void onClientSetup(final FMLClientSetupEvent event) {
-		ClientSetup.run();
-	}
-
-	private void onCommonSetup(final FMLCommonSetupEvent event) {
-		CommonSetup.run();
-	}
+    @Override
+    public void onInitialize() {
+        //Bind tag
+        final Tag<Block> nonClimbable = ModTags.NON_CLIMBABLE;
+    }
 }

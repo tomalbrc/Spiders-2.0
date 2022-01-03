@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "id": "spiderstpo",
+  "version": "${version}",
+
+  "name": "Spiders 2.0",
+  "description": "Vanilla spiders are not yet creepy enough for you? You wish spiders would §oactually climb properly§r?!\nSpiders 2.0 enables spiders to walk along walls and ceilings and it also improves their AI such that they can find their way around almost any obstacle!",
+  "authors": [
+    "TheCyberBrick"
+  ],
+  "contact": {
+    "homepage": "https://github.com/CorgiTaco/Spiders-2.0",
+    "sources": "https://github.com/CorgiTaco/Spiders-2.0"
+  },
+
+  "license": "GNU Lesser General Public License v2.1",
+  "icon": "assets/modid/icon.png",
+
+  "environment": "*",
+  "entrypoints": {
+    "main": [
+      "tcb.spiderstpo.common.SpiderMod"
+    ]
+  },
+  "mixins": [
+    "spiderstpo.mixins.json"
+  ],
+  "accessWidener": "spiderstpo.aw",
+  "depends": {
+    "fabricloader": ">=0.11.3",
+    "fabric": "*",
+    "minecraft": "1.18.x",
+    "java": ">=17"
+  },
+  "suggests": {
+    "another-mod": "*"
+  }
+}
