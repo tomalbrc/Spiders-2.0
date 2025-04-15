@@ -8,19 +8,9 @@ import tcb.spiderstpo.common.entity.mob.ILivingEntityRotationHook;
 
 @Mixin(LivingEntity.class)
 public abstract class LivingEntityClientMixin implements ILivingEntityRotationHook {
-    @ModifyVariable(method = "lerpTo(DDDFFIZ)V", at = @At(value = "HEAD"), ordinal = 0)
-    private float onSetPositionAndRotationDirectYaw(float yaw, double x, double y, double z, float yaw2, float pitch, int posRotationIncrements, boolean teleport) {
-        return this.getTargetYaw(x, y, z, yaw, pitch, posRotationIncrements, teleport);
-    }
-
     @Override
     public float getTargetYaw(double x, double y, double z, float yaw, float pitch, int posRotationIncrements, boolean teleport) {
         return yaw;
-    }
-
-    @ModifyVariable(method = "lerpTo(DDDFFIZ)V", at = @At(value = "HEAD"), ordinal = 1)
-    private float onSetPositionAndRotationDirectPitch(float pitch, double x, double y, double z, float yaw, float pitch2, int posRotationIncrements, boolean teleport) {
-        return this.getTargetPitch(x, y, z, yaw, pitch, posRotationIncrements, teleport);
     }
 
     @Override
@@ -28,7 +18,7 @@ public abstract class LivingEntityClientMixin implements ILivingEntityRotationHo
         return pitch;
     }
 
-    @ModifyVariable(method = "lerpHeadTo(FI)V", at = @At("HEAD"), ordinal = 0)
+    @ModifyVariable(method = "lerpHeadTo(FI)V", at = @At("HEAD"), ordinal = 0, argsOnly = true)
     private float onSetHeadRotation(float yaw, float yaw2, int rotationIncrements) {
         return this.getTargetHeadYaw(yaw, rotationIncrements);
     }

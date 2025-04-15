@@ -7,10 +7,10 @@ import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.ai.navigation.GroundPathNavigation;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.pathfinder.BlockPathTypes;
 import net.minecraft.world.level.pathfinder.Path;
 import net.minecraft.world.level.pathfinder.PathComputationType;
 import net.minecraft.world.level.pathfinder.PathFinder;
+import net.minecraft.world.level.pathfinder.PathType;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.phys.shapes.CollisionContext;
@@ -146,7 +146,7 @@ public class AdvancedGroundPathNavigator<T extends Mob & IClimberEntity> extends
             }
 
             Vec3 facingDiff = checkPos.subtract(entityPos.add(0, axis == 1 ? this.mob.getBbHeight() / 2 : 0, 0));
-            Direction facing = Direction.getNearest((float) facingDiff.x, (float) facingDiff.y, (float) facingDiff.z);
+            Direction facing = Direction.getApproximateNearest((float) facingDiff.x, (float) facingDiff.y, (float) facingDiff.z);
 
             boolean blocked = false;
 
@@ -155,14 +155,14 @@ public class AdvancedGroundPathNavigator<T extends Mob & IClimberEntity> extends
             loop:
             for (int yo = 0; yo < height; yo++) {
                 for (int xzo = -ceilHalfWidth; xzo <= ceilHalfWidth; xzo++) {
-                    BlockPos pos = new BlockPos(checkPos.x + (axis != 0 ? xzo : 0), checkPos.y + (axis != 1 ? yo : 0), checkPos.z + (axis != 2 ? xzo : 0));
+                    BlockPos pos = BlockPos.containing(checkPos.x + (axis != 0 ? xzo : 0), checkPos.y + (axis != 1 ? yo : 0), checkPos.z + (axis != 2 ? xzo : 0));
 
-                    BlockState state = this.advancedPathFindingEntity.level.getBlockState(pos);
+                    BlockState state = this.advancedPathFindingEntity.level().getBlockState(pos);
 
-                    BlockPathTypes nodeType = state.isPathfindable(this.advancedPathFindingEntity.level, pos, PathComputationType.LAND) ? BlockPathTypes.OPEN : BlockPathTypes.BLOCKED;
+                    PathType nodeType = state.isPathfindable(PathComputationType.LAND) ? PathType.OPEN : PathType.BLOCKED;
 
-                    if (nodeType == BlockPathTypes.BLOCKED) {
-                        VoxelShape collisionShape = state.getShape(this.advancedPathFindingEntity.level, pos, CollisionContext.of(this.advancedPathFindingEntity)).move(pos.getX(), pos.getY(), pos.getZ());
+                    if (nodeType == PathType.BLOCKED) {
+                        VoxelShape collisionShape = state.getShape(this.advancedPathFindingEntity.level(), pos, CollisionContext.of(this.advancedPathFindingEntity)).move(pos.getX(), pos.getY(), pos.getZ());
 
                         //TODO Use ILineConsumer
                         if (collisionShape != null && collisionShape.toAabbs().stream().anyMatch(aabb -> aabb.intersects(checkBox))) {

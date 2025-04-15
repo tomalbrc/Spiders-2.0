@@ -2,7 +2,7 @@ package tcb.spiderstpo.common.entity.movement;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
-import net.minecraft.world.level.pathfinder.BlockPathTypes;
+import net.minecraft.world.level.pathfinder.PathType;
 import net.minecraft.world.level.pathfinder.Node;
 import net.minecraft.world.level.pathfinder.NodeEvaluator;
 import net.minecraft.world.level.pathfinder.Path;
@@ -26,7 +26,7 @@ public class AdvancedPathFinder extends CustomPathFinder {
     }
 
     private static boolean isOmnidirectionalPoint(DirectionalPathPoint point) {
-        return point.type == BlockPathTypes.WATER || point.type == BlockPathTypes.LAVA;
+        return point.type == PathType.WATER || point.type == PathType.LAVA;
     }
 
     @Override

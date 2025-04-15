@@ -7,8 +7,9 @@ import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.ai.control.JumpControl;
 import net.minecraft.world.entity.ai.control.MoveControl;
 import net.minecraft.world.entity.ai.navigation.PathNavigation;
-import net.minecraft.world.level.pathfinder.BlockPathTypes;
 import net.minecraft.world.level.pathfinder.NodeEvaluator;
+import net.minecraft.world.level.pathfinder.PathType;
+import net.minecraft.world.level.pathfinder.PathfindingContext;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.phys.shapes.VoxelShape;
@@ -80,7 +81,7 @@ public class ClimberMoveController<T extends Mob & IClimberEntity> extends MoveC
             double dz = this.wantedZ - this.mob.getZ();
 
             if (this.side != null && this.block != null) {
-                VoxelShape shape = this.mob.level.getBlockState(this.block).getCollisionShape(this.mob.level, this.block);
+                VoxelShape shape = this.mob.level().getBlockState(this.block).getCollisionShape(this.mob.level(), this.block);
 
                 AABB aabb = this.mob.getBoundingBox();
 
@@ -174,20 +175,13 @@ public class ClimberMoveController<T extends Mob & IClimberEntity> extends MoveC
                 dz += oz;
             }
 
-            Direction mainOffsetDir = Direction.getNearest(dx, dy, dz);
+            Direction mainOffsetDir = Direction.getApproximateNearest(dx, dy, dz);
 
-            float reach;
-            switch (mainOffsetDir) {
-                case DOWN:
-                    reach = 0;
-                    break;
-                case UP:
-                    reach = this.mob.getBbHeight();
-                    break;
-                default:
-                    reach = this.mob.getBbWidth() * 0.5f;
-                    break;
-            }
+            float reach = switch (mainOffsetDir) {
+                case DOWN -> 0;
+                case UP -> this.mob.getBbHeight();
+                default -> this.mob.getBbWidth() * 0.5f;
+            };
 
             double verticalOffset = Math.abs(mainOffsetDir.getStepX() * dx) + Math.abs(mainOffsetDir.getStepY() * dy) + Math.abs(mainOffsetDir.getStepZ() * dz);
 
@@ -234,10 +228,6 @@ public class ClimberMoveController<T extends Mob & IClimberEntity> extends MoveC
                     jumpDir = new Vec3(this.side.getStepX(), this.side.getStepY(), this.side.getStepZ());
                 }
 
-                if (jumpDir == null && this.side != null && Math.abs(this.climber.getGroundDirection().getRight().y) > 0.5f && (!this.climber.canAttachToSide(this.side) || !this.climber.canAttachToSide(Direction.getNearest(dx, dy, dz))) && this.wantedY > this.mob.getY() + 0.1f && verticalOffset > this.mob.maxUpStep) {
-                    jumpDir = new Vec3(0, 1, 0);
-                }
-
                 if (jumpDir != null) {
                     this.mob.setSpeed((float) speed * 0.5f);
 
@@ -253,7 +243,7 @@ public class ClimberMoveController<T extends Mob & IClimberEntity> extends MoveC
         } else if (this.operation == MoveControl.Operation.JUMPING) {
             this.mob.setSpeed((float) speed);
 
-            if (this.mob.isOnGround()) {
+            if (this.mob.onGround()) {
                 this.operation = MoveControl.Operation.WAIT;
             }
         } else {
@@ -265,6 +255,6 @@ public class ClimberMoveController<T extends Mob & IClimberEntity> extends MoveC
         PathNavigation navigator = this.mob.getNavigation();
         NodeEvaluator processor = navigator.getNodeEvaluator();
 
-        return processor.getBlockPathType(this.mob.level, Mth.floor(this.mob.getX() + x), Mth.floor(this.mob.getY() + this.mob.getBbHeight() * 0.5f + y), Mth.floor(this.mob.getZ() + z)) == BlockPathTypes.WALKABLE;
+        return processor.getPathType(new PathfindingContext(this.mob.level(), this.mob), Mth.floor(this.mob.getX() + x), Mth.floor(this.mob.getY() + this.mob.getBbHeight() * 0.5f + y), Mth.floor(this.mob.getZ() + z)) == PathType.WALKABLE;
     }
 }

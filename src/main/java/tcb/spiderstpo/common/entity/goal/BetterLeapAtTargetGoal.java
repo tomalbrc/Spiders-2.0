@@ -30,7 +30,7 @@ public class BetterLeapAtTargetGoal<T extends Mob & IClimberEntity> extends Goal
         if (!this.leaper.isVehicle()) {
             this.leapTarget = this.leaper.getTarget();
 
-            if (this.leapTarget != null && this.leaper.isOnGround()) {
+            if (this.leapTarget != null && this.leaper.onGround()) {
                 Triple<Vec3, Vec3, Vec3> projectedVector = this.getProjectedVector(this.leapTarget.position());
 
                 double dstSq = projectedVector.getLeft().lengthSqr();
@@ -48,7 +48,7 @@ public class BetterLeapAtTargetGoal<T extends Mob & IClimberEntity> extends Goal
 
     @Override
     public boolean canContinueToUse() {
-        return !this.leaper.isOnGround();
+        return !this.leaper.onGround();
     }
 
     @Override

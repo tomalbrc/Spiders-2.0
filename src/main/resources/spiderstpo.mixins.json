@@ -9,7 +9,6 @@
     "ClimberEntityMixin",
     "EntityMixin",
     "LivingEntityMixin",
-    "MixinLivingRenderer",
     "MobEntityMixin",
     "access.BlockCollisionsAccess",
     "access.ChunkMapAccess",

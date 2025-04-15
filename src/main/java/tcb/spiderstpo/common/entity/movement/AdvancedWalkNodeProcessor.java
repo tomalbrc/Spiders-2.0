@@ -12,22 +12,19 @@ import net.minecraft.core.Direction.Axis;
 import net.minecraft.core.Vec3i;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Mob;
-import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.PathNavigationRegion;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.material.Fluids;
-import net.minecraft.world.level.pathfinder.BlockPathTypes;
-import net.minecraft.world.level.pathfinder.Node;
-import net.minecraft.world.level.pathfinder.PathComputationType;
-import net.minecraft.world.level.pathfinder.WalkNodeEvaluator;
+import net.minecraft.world.level.pathfinder.*;
 import net.minecraft.world.phys.AABB;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.EnumSet;
 
 public class AdvancedWalkNodeProcessor extends WalkNodeEvaluator {
-    protected static final BlockPathTypes[] PATH_NODE_TYPES = BlockPathTypes.values();
+    protected static final PathType[] PATH_NODE_TYPES = PathType.values();
     protected static final Direction[] DIRECTIONS = Direction.values();
 
     protected static final Vec3i PX = new Vec3i(1, 0, 0);
@@ -51,128 +48,19 @@ public class AdvancedWalkNodeProcessor extends WalkNodeEvaluator {
     protected static final Vec3i NYPZ = new Vec3i(0, -1, 1);
     protected static final Vec3i PYNZ = new Vec3i(0, 1, -1);
     protected static final Vec3i NYNZ = new Vec3i(0, -1, -1);
-    private final Long2LongMap pathNodeTypeCache = new Long2LongOpenHashMap();
-    private final Long2ObjectMap<BlockPathTypes> rawPathNodeTypeCache = new Long2ObjectOpenHashMap<>();
-    private final Object2BooleanMap<AABB> aabbCollisionCache = new Object2BooleanOpenHashMap<>();
+
     protected IAdvancedPathFindingEntity advancedPathFindingEntity;
     protected boolean startFromGround = true;
     protected boolean checkObstructions;
     protected int pathingSizeOffsetX, pathingSizeOffsetY, pathingSizeOffsetZ;
     protected EnumSet<Direction> pathableFacings = EnumSet.of(Direction.DOWN);
     protected Direction[] pathableFacingsArray;
+
+    private final Long2LongMap pathNodeTypeCache = new Long2LongOpenHashMap();
+    private final Long2ObjectMap<PathType> rawPathNodeTypeCache = new Long2ObjectOpenHashMap<>();
+    private final Object2BooleanMap<AABB> aabbCollisionCache = new Object2BooleanOpenHashMap<>();
+
     protected boolean alwaysAllowDiagonals = true;
-
-    protected static boolean isSharingDirection(DirectionalPathPoint from, DirectionalPathPoint to) {
-        Direction[] fromDirections = from.getPathableSides();
-        Direction[] toDirections = to.getPathableSides();
-
-        for (int i = 0; i < fromDirections.length; i++) {
-            Direction d1 = fromDirections[i];
-
-            for (int j = 0; j < toDirections.length; j++) {
-                Direction d2 = toDirections[j];
-
-                if (d1 == d2) {
-                    return true;
-                }
-            }
-        }
-
-        return false;
-    }
-
-    static long packDirection(Direction facing, long packed) {
-        return packed | (1L << facing.ordinal());
-    }
-
-    static long packDirection(long packed1, long packed2) {
-        return (packed1 & ~0xFFFFFFFFL) | (packed1 & 0xFFFFFFFFL) | (packed2 & 0xFFFFFFFFL);
-    }
-
-    static boolean unpackDirection(Direction facing, long packed) {
-        return (packed & (1L << facing.ordinal())) != 0;
-    }
-
-    static boolean unpackDirection(long packed) {
-        return (packed & 0xFFFFFFFFL) != 0;
-    }
-
-    static long packNodeType(BlockPathTypes type, long packed) {
-        return ((long) type.ordinal() << 32) | (packed & 0xFFFFFFFFL);
-    }
-
-    static BlockPathTypes unpackNodeType(long packed) {
-        return PATH_NODE_TYPES[(int) (packed >> 32)];
-    }
-
-    protected static BlockPathTypes getRawPathNodeTypeCached(Long2ObjectMap<BlockPathTypes> cache, BlockGetter blockaccessIn, BlockPos.MutableBlockPos pos) {
-        return cache.computeIfAbsent(BlockPos.asLong(pos.getX(), pos.getY(), pos.getZ()), (key) -> {
-            return getBlockPathTypeRaw(blockaccessIn, pos); //getPathNodeTypeRaw
-        });
-    }
-
-    protected static long getDirectionalPathNodeType(Long2ObjectMap<BlockPathTypes> rawPathNodeTypeCache, BlockGetter blockaccessIn, int x, int y, int z, int pathingSizeOffsetX, int pathingSizeOffsetY, int pathingSizeOffsetZ, Direction[] pathableFacings) {
-        long packed = 0L;
-
-        BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
-
-        BlockPathTypes nodeType = getRawPathNodeTypeCached(rawPathNodeTypeCache, blockaccessIn, pos.set(x, y, z));
-        boolean isWalkable = false;
-
-        if (nodeType == BlockPathTypes.OPEN && y >= 1) {
-            for (int i = 0; i < pathableFacings.length; i++) {
-                Direction pathableFacing = pathableFacings[i];
-
-                int checkHeight = pathableFacing.getAxis() != Axis.Y ? Math.min(4, pathingSizeOffsetY - 1) : 0;
-
-                int cx = x + pathableFacing.getStepX() * pathingSizeOffsetX;
-                int cy = y + (pathableFacing == Direction.DOWN ? -1 : pathableFacing == Direction.UP ? pathingSizeOffsetY : 0);
-                int cz = z + pathableFacing.getStepZ() * pathingSizeOffsetZ;
-
-                for (int yo = 0; yo <= checkHeight; yo++) {
-                    pos.set(cx, cy + yo, cz);
-
-                    BlockPathTypes offsetNodeType = getRawPathNodeTypeCached(rawPathNodeTypeCache, blockaccessIn, pos);
-                    nodeType = offsetNodeType != BlockPathTypes.WALKABLE && offsetNodeType != BlockPathTypes.OPEN && offsetNodeType != BlockPathTypes.WATER && offsetNodeType != BlockPathTypes.LAVA ? BlockPathTypes.WALKABLE : BlockPathTypes.OPEN;
-
-                    if (offsetNodeType == BlockPathTypes.DAMAGE_FIRE) {
-                        nodeType = BlockPathTypes.DAMAGE_FIRE;
-                    }
-
-                    if (offsetNodeType == BlockPathTypes.DAMAGE_CACTUS) {
-                        nodeType = BlockPathTypes.DAMAGE_CACTUS;
-                    }
-
-                    if (offsetNodeType == BlockPathTypes.DAMAGE_OTHER) {
-                        nodeType = BlockPathTypes.DAMAGE_OTHER;
-                    }
-
-                    if (offsetNodeType == BlockPathTypes.STICKY_HONEY) {
-                        nodeType = BlockPathTypes.STICKY_HONEY;
-                    }
-
-                    if (nodeType == BlockPathTypes.WALKABLE) {
-                        if (isColliderNodeType(offsetNodeType)) {
-                            packed = packDirection(pathableFacing, packed);
-                        }
-                        isWalkable = true;
-                    }
-                }
-            }
-        }
-
-        if (isWalkable) {
-            nodeType = checkNeighbourBlocks(blockaccessIn, pos.set(x, y, z), BlockPathTypes.WALKABLE); //checkNeighborBlocks
-        }
-
-        return packNodeType(nodeType, packed);
-    }
-
-    protected static boolean isColliderNodeType(BlockPathTypes type) {
-        return type == BlockPathTypes.BLOCKED || type == BlockPathTypes.TRAPDOOR || type == BlockPathTypes.FENCE ||
-                type == BlockPathTypes.DOOR_WOOD_CLOSED || type == BlockPathTypes.DOOR_IRON_CLOSED || type == BlockPathTypes.LEAVES ||
-                type == BlockPathTypes.STICKY_HONEY || type == BlockPathTypes.COCOA;
-    }
 
     public void setStartPathOnGround(boolean startFromGround) {
         this.startFromGround = startFromGround;
@@ -183,7 +71,7 @@ public class AdvancedWalkNodeProcessor extends WalkNodeEvaluator {
     }
 
     public void setCanPathWalls(boolean canPathWalls) {
-        if (canPathWalls) {
+        if(canPathWalls) {
             this.pathableFacings.add(Direction.NORTH);
             this.pathableFacings.add(Direction.EAST);
             this.pathableFacings.add(Direction.SOUTH);
@@ -197,7 +85,7 @@ public class AdvancedWalkNodeProcessor extends WalkNodeEvaluator {
     }
 
     public void setCanPathCeiling(boolean canPathCeiling) {
-        if (canPathCeiling) {
+        if(canPathCeiling) {
             this.pathableFacings.add(Direction.UP);
         } else {
             this.pathableFacings.remove(Direction.UP);
@@ -208,7 +96,7 @@ public class AdvancedWalkNodeProcessor extends WalkNodeEvaluator {
     public void prepare(PathNavigationRegion sourceIn, Mob mob) {
         super.prepare(sourceIn, mob);
 
-        if (mob instanceof IAdvancedPathFindingEntity) {
+        if(mob instanceof IAdvancedPathFindingEntity) {
             this.advancedPathFindingEntity = (IAdvancedPathFindingEntity) mob;
         } else {
             throw new IllegalArgumentException("Only mobs that extend " + IAdvancedPathFindingEntity.class.getSimpleName() + " are supported. Received: " + mob.getClass().getName());
@@ -231,12 +119,11 @@ public class AdvancedWalkNodeProcessor extends WalkNodeEvaluator {
     }
 
     private boolean checkAabbCollision(AABB aabb) {
-        return this.aabbCollisionCache.computeIfAbsent(aabb, (p_237237_2_) -> {
-            return !this.level.noCollision(this.mob, aabb);
-        });
+        return this.aabbCollisionCache.computeIfAbsent(aabb, (p_237237_2_) -> !this.currentContext.level().noCollision(this.mob, aabb));
     }
 
     @Override
+    @NotNull
     public Node getStart() {
         double x = this.mob.getX();
         double y = this.mob.getY();
@@ -246,38 +133,37 @@ public class AdvancedWalkNodeProcessor extends WalkNodeEvaluator {
 
         int by = Mth.floor(y);
 
-        BlockState state = this.level.getBlockState(checkPos.set(x, by, z));
+        BlockState state = this.currentContext.level().getBlockState(checkPos.set(x, by, z));
 
-        if (!this.mob.canStandOnFluid(state.getFluidState())) {
-            if (this.canFloat() && this.mob.isInWater()) {
-                while (true) {
-                    if (state.getBlock() != Blocks.WATER && state.getFluidState() != Fluids.WATER.getSource(false)) {
+        if(!this.mob.canStandOnFluid(state.getFluidState())) {
+            if(this.canFloat() && this.mob.isInWater()) {
+                while(true) {
+                    if(state.getBlock() != Blocks.WATER && state.getFluidState() != Fluids.WATER.getSource(false)) {
                         --by;
                         break;
                     }
 
                     ++by;
-                    state = this.level.getBlockState(checkPos.set(x, by, z));
+                    state = this.currentContext.level().getBlockState(checkPos.set(x, by, z));
                 }
-            } else if (this.mob.isOnGround() || !this.startFromGround) {
+            } else if(this.mob.onGround() || !this.startFromGround) {
                 by = Mth.floor(y + Math.min(0.5D, Math.max(this.mob.getBbHeight() - 0.1f, 0.0D)));
             } else {
                 BlockPos blockpos;
-                for (blockpos = this.mob.blockPosition(); (this.level.getBlockState(blockpos).isAir() || this.level.getBlockState(blockpos).isPathfindable(this.level, blockpos, PathComputationType.LAND)) && blockpos.getY() > 0; blockpos = blockpos.below()) {
-                }
+                for(blockpos = this.mob.blockPosition(); (this.currentContext.level().getBlockState(blockpos).isAir() || this.currentContext.level().getBlockState(blockpos).isPathfindable(PathComputationType.LAND)) && blockpos.getY() > 0; blockpos = blockpos.below()) { }
 
                 by = blockpos.above().getY();
             }
         } else {
-            while (this.mob.canStandOnFluid(state.getFluidState())) {
+            while(this.mob.canStandOnFluid(state.getFluidState())) {
                 ++by;
-                state = this.level.getBlockState(checkPos.set(x, by, z));
+                state = this.currentContext.level().getBlockState(checkPos.set(x, by, z));
             }
 
             --by;
         }
 
-        final BlockPos initialStartPos = new BlockPos(x, by, z);
+        final BlockPos initialStartPos = BlockPos.containing(x, by, z);
         BlockPos startPos = initialStartPos;
 
         long packed = this.removeNonStartingSides(this.getDirectionalPathNodeTypeCached(this.mob, startPos.getX(), startPos.getY(), startPos.getZ()));
@@ -287,17 +173,17 @@ public class AdvancedWalkNodeProcessor extends WalkNodeEvaluator {
 
         startPos = this.findSuitableStartingPosition(startPos, startPathPoint);
 
-        if (!initialStartPos.equals(startPos)) {
+        if(!initialStartPos.equals(startPos)) {
             packed = this.removeNonStartingSides(this.getDirectionalPathNodeTypeCached(this.mob, startPos.getX(), startPos.getY(), startPos.getZ()));
             startPathPoint = this.openPoint(startPos.getX(), startPos.getY(), startPos.getZ(), packed, false);
             startPathPoint.type = unpackNodeType(packed);
             startPathPoint.costMalus = this.mob.getPathfindingMalus(startPathPoint.type);
         }
 
-        if (this.mob.getPathfindingMalus(startPathPoint.type) < 0.0F) {
+        if(this.mob.getPathfindingMalus(startPathPoint.type) < 0.0F) {
             AABB aabb = this.mob.getBoundingBox();
 
-            if (this.isSafeStartingPosition(checkPos.set(aabb.minX, by, aabb.minZ)) || this.isSafeStartingPosition(checkPos.set(aabb.minX, by, aabb.maxZ)) || this.isSafeStartingPosition(checkPos.set(aabb.maxX, by, aabb.minZ)) || this.isSafeStartingPosition(checkPos.set(aabb.maxX, by, aabb.maxZ))) {
+            if(this.isSafeStartingPosition(checkPos.set(aabb.minX, by, aabb.minZ)) || this.isSafeStartingPosition(checkPos.set(aabb.minX, by, aabb.maxZ)) || this.isSafeStartingPosition(checkPos.set(aabb.maxX, by, aabb.minZ)) || this.isSafeStartingPosition(checkPos.set(aabb.maxX, by, aabb.maxZ))) {
                 packed = this.removeNonStartingSides(this.getDirectionalPathNodeTypeCached(this.mob, checkPos.getX(), checkPos.getY(), checkPos.getZ()));
                 startPathPoint = this.openPoint(checkPos.getX(), checkPos.getY(), checkPos.getZ(), packed, false);
                 startPathPoint.type = unpackNodeType(packed);
@@ -311,8 +197,8 @@ public class AdvancedWalkNodeProcessor extends WalkNodeEvaluator {
     private long removeNonStartingSides(long packed) {
         long newPacked = packed & ~0xFFFFFFFFL;
 
-        for (Direction side : DIRECTIONS) {
-            if (unpackDirection(side, packed) && this.isValidStartingSide(side)) {
+        for(Direction side : DIRECTIONS) {
+            if(unpackDirection(side, packed) && this.isValidStartingSide(side)) {
                 newPacked = packDirection(side, newPacked);
             }
         }
@@ -326,19 +212,19 @@ public class AdvancedWalkNodeProcessor extends WalkNodeEvaluator {
     }
 
     protected BlockPos findSuitableStartingPosition(BlockPos pos, DirectionalPathPoint startPathPoint) {
-        if (startPathPoint.getPathableSides().length == 0) {
+        if(startPathPoint.getPathableSides().length == 0) {
             Direction avoidedOffset = this.advancedPathFindingEntity.getGroundSide().getOpposite();
 
-            for (int xo = -1; xo <= 1; xo++) {
-                for (int yo = -1; yo <= 1; yo++) {
-                    for (int zo = -1; zo <= 1; zo++) {
-                        if (xo != avoidedOffset.getStepX() && yo != avoidedOffset.getStepY() && zo != avoidedOffset.getStepZ()) {
+            for(int xo = -1; xo <= 1; xo++) {
+                for(int yo = -1; yo <= 1; yo++) {
+                    for(int zo = -1; zo <= 1; zo++) {
+                        if(xo != avoidedOffset.getStepX() && yo != avoidedOffset.getStepY() && zo != avoidedOffset.getStepZ()) {
                             BlockPos offsetPos = pos.offset(xo, yo, zo);
 
                             long packed = this.getDirectionalPathNodeTypeCached(this.mob, offsetPos.getX(), offsetPos.getY(), offsetPos.getZ());
-                            BlockPathTypes nodeType = unpackNodeType(packed);
+                            PathType nodeType = unpackNodeType(packed);
 
-                            if (nodeType == BlockPathTypes.WALKABLE && unpackDirection(packed)) {
+                            if(nodeType == PathType.WALKABLE && unpackDirection(packed)) {
                                 return offsetPos;
                             }
                         }
@@ -351,18 +237,18 @@ public class AdvancedWalkNodeProcessor extends WalkNodeEvaluator {
     }
 
     private boolean isSafeStartingPosition(BlockPos pos) {
-        BlockPathTypes pathnodetype = unpackNodeType(this.getDirectionalPathNodeTypeCached(this.mob, pos.getX(), pos.getY(), pos.getZ()));
+        PathType pathnodetype = unpackNodeType(this.getDirectionalPathNodeTypeCached(this.mob, pos.getX(), pos.getY(), pos.getZ()));
         return this.mob.getPathfindingMalus(pathnodetype) >= 0.0F;
     }
 
     private boolean allowDiagonalPathOptions(Node[] options) {
-        return this.alwaysAllowDiagonals || options == null || options.length == 0 || ((options[0] == null || options[0].type == BlockPathTypes.OPEN || options[0].costMalus != 0.0F) && (options.length <= 1 || (options[1] == null || options[1].type == BlockPathTypes.OPEN || options[1].costMalus != 0.0F)));
+        return this.alwaysAllowDiagonals || options == null || options.length == 0 || ((options[0] == null || options[0].type == PathType.OPEN || options[0].costMalus != 0.0F) && (options.length <= 1 || (options[1] == null || options[1].type == PathType.OPEN || options[1].costMalus != 0.0F)));
     }
 
     @Override
     public int getNeighbors(Node[] pathOptions, Node currentPointIn) {
         DirectionalPathPoint currentPoint;
-        if (currentPointIn instanceof DirectionalPathPoint) {
+        if(currentPointIn instanceof DirectionalPathPoint) {
             currentPoint = (DirectionalPathPoint) currentPointIn;
         } else {
             currentPoint = new DirectionalPathPoint(currentPointIn);
@@ -371,60 +257,60 @@ public class AdvancedWalkNodeProcessor extends WalkNodeEvaluator {
         int openedNodeCount = 0;
         int stepHeight = 0;
 
-        BlockPathTypes nodeTypeAbove = unpackNodeType(this.getDirectionalPathNodeTypeCached(this.mob, currentPoint.x, currentPoint.y + 1, currentPoint.z));
+        PathType nodeTypeAbove = unpackNodeType(this.getDirectionalPathNodeTypeCached(this.mob, currentPoint.x, currentPoint.y + 1, currentPoint.z));
 
-        if (this.mob.getPathfindingMalus(nodeTypeAbove) >= 0.0F) {
-            stepHeight = Mth.floor(Math.max(1.0F, this.mob.maxUpStep));
+        if(this.mob.getPathfindingMalus(nodeTypeAbove) >= 0.0F) {
+            stepHeight = Mth.floor(Math.max(1.0F, this.mob.maxUpStep()));
         }
 
-        double height = currentPoint.y - getFloorLevel(this.level, new BlockPos(currentPoint.x, currentPoint.y, currentPoint.z));
+        double height = currentPoint.y - getFloorLevel(this.currentContext.level(), new BlockPos(currentPoint.x, currentPoint.y, currentPoint.z));
 
         DirectionalPathPoint[] pathsPZ = this.getSafePoints(currentPoint.x, currentPoint.y, currentPoint.z + 1, stepHeight, height, PZ, this.checkObstructions);
         DirectionalPathPoint[] pathsNX = this.getSafePoints(currentPoint.x - 1, currentPoint.y, currentPoint.z, stepHeight, height, NX, this.checkObstructions);
         DirectionalPathPoint[] pathsPX = this.getSafePoints(currentPoint.x + 1, currentPoint.y, currentPoint.z, stepHeight, height, PX, this.checkObstructions);
         DirectionalPathPoint[] pathsNZ = this.getSafePoints(currentPoint.x, currentPoint.y, currentPoint.z - 1, stepHeight, height, NZ, this.checkObstructions);
 
-        for (int k = 0; k < pathsPZ.length; k++) {
-            if (this.isSuitablePoint(pathsPZ[k], currentPoint, this.checkObstructions)) {
+        for(int k = 0; k < pathsPZ.length; k++) {
+            if(this.isSuitablePoint(pathsPZ[k], currentPoint, this.checkObstructions)) {
                 pathOptions[openedNodeCount++] = pathsPZ[k];
             }
         }
 
-        for (int k = 0; k < pathsNX.length; k++) {
-            if (this.isSuitablePoint(pathsNX[k], currentPoint, this.checkObstructions)) {
+        for(int k = 0; k < pathsNX.length; k++) {
+            if(this.isSuitablePoint(pathsNX[k], currentPoint, this.checkObstructions)) {
                 pathOptions[openedNodeCount++] = pathsNX[k];
             }
         }
 
-        for (int k = 0; k < pathsPX.length; k++) {
-            if (this.isSuitablePoint(pathsPX[k], currentPoint, this.checkObstructions)) {
+        for(int k = 0; k < pathsPX.length; k++) {
+            if(this.isSuitablePoint(pathsPX[k], currentPoint, this.checkObstructions)) {
                 pathOptions[openedNodeCount++] = pathsPX[k];
             }
         }
 
-        for (int k = 0; k < pathsNZ.length; k++) {
-            if (this.isSuitablePoint(pathsNZ[k], currentPoint, this.checkObstructions)) {
+        for(int k = 0; k < pathsNZ.length; k++) {
+            if(this.isSuitablePoint(pathsNZ[k], currentPoint, this.checkObstructions)) {
                 pathOptions[openedNodeCount++] = pathsNZ[k];
             }
         }
 
         DirectionalPathPoint[] pathsNY = null;
-        if (this.checkObstructions || this.pathableFacings.size() > 1) {
+        if(this.checkObstructions || this.pathableFacings.size() > 1) {
             pathsNY = this.getSafePoints(currentPoint.x, currentPoint.y - 1, currentPoint.z, stepHeight, height, NY, this.checkObstructions);
 
-            for (int k = 0; k < pathsNY.length; k++) {
-                if (this.isSuitablePoint(pathsNY[k], currentPoint, this.checkObstructions)) {
+            for(int k = 0; k < pathsNY.length; k++) {
+                if(this.isSuitablePoint(pathsNY[k], currentPoint, this.checkObstructions)) {
                     pathOptions[openedNodeCount++] = pathsNY[k];
                 }
             }
         }
 
         DirectionalPathPoint[] pathsPY = null;
-        if (this.pathableFacings.size() > 1) {
+        if(this.pathableFacings.size() > 1) {
             pathsPY = this.getSafePoints(currentPoint.x, currentPoint.y + 1, currentPoint.z, stepHeight, height, PY, this.checkObstructions);
 
-            for (int k = 0; k < pathsPY.length; k++) {
-                if (this.isSuitablePoint(pathsPY[k], currentPoint, this.checkObstructions)) {
+            for(int k = 0; k < pathsPY.length; k++) {
+                if(this.isSuitablePoint(pathsPY[k], currentPoint, this.checkObstructions)) {
                     pathOptions[openedNodeCount++] = pathsPY[k];
                 }
             }
@@ -439,202 +325,202 @@ public class AdvancedWalkNodeProcessor extends WalkNodeEvaluator {
 
         boolean is3DPathing = this.pathableFacings.size() >= 3;
 
-        if (allowDiagonalNZ && allowDiagonalNX) {
+        if(allowDiagonalNZ && allowDiagonalNX) {
             DirectionalPathPoint[] pathsNXNZ = this.getSafePoints(currentPoint.x - this.entityWidth, currentPoint.y, currentPoint.z - 1, stepHeight, height, NXNZ, this.checkObstructions);
 
             boolean foundDiagonal = false;
 
-            for (int k = 0; k < pathsNXNZ.length; k++) {
-                if (this.isSuitablePoint(pathsNX, currentPoint.x - 1, currentPoint.y, currentPoint.z, pathsNZ, currentPoint.x, currentPoint.y, currentPoint.z - 1, pathsNXNZ[k], currentPoint, this.checkObstructions, fitsThroughPoles, is3DPathing)) {
+            for(int k = 0; k < pathsNXNZ.length; k++) {
+                if(this.isSuitablePoint(pathsNX, currentPoint.x - 1, currentPoint.y, currentPoint.z, pathsNZ, currentPoint.x, currentPoint.y, currentPoint.z - 1, pathsNXNZ[k], currentPoint, this.checkObstructions, fitsThroughPoles, is3DPathing)) {
                     pathOptions[openedNodeCount++] = pathsNXNZ[k];
                     foundDiagonal = true;
                 }
             }
 
-            if (!foundDiagonal && (this.entityWidth != 1 || this.entityDepth != 1)) {
+            if(!foundDiagonal && (this.entityWidth != 1 || this.entityDepth != 1)) {
                 pathsNXNZ = this.getSafePoints(currentPoint.x - 1, currentPoint.y, currentPoint.z - this.entityDepth, stepHeight, height, NXNZ, this.checkObstructions);
 
-                for (int k = 0; k < pathsNXNZ.length; k++) {
-                    if (this.isSuitablePoint(pathsNX, currentPoint.x - 1, currentPoint.y, currentPoint.z, pathsNZ, currentPoint.x, currentPoint.y, currentPoint.z - 1, pathsNXNZ[k], currentPoint, this.checkObstructions, fitsThroughPoles, is3DPathing)) {
+                for(int k = 0; k < pathsNXNZ.length; k++) {
+                    if(this.isSuitablePoint(pathsNX, currentPoint.x - 1, currentPoint.y, currentPoint.z, pathsNZ, currentPoint.x, currentPoint.y, currentPoint.z - 1, pathsNXNZ[k], currentPoint, this.checkObstructions, fitsThroughPoles, is3DPathing)) {
                         pathOptions[openedNodeCount++] = pathsNXNZ[k];
                     }
                 }
             }
         }
 
-        if (allowDiagonalNZ && allowDiagonalPX) {
+        if(allowDiagonalNZ && allowDiagonalPX) {
             DirectionalPathPoint[] pathsPXNZ = this.getSafePoints(currentPoint.x + 1, currentPoint.y, currentPoint.z - 1, stepHeight, height, PXNZ, this.checkObstructions);
 
-            for (int k = 0; k < pathsPXNZ.length; k++) {
-                if (this.isSuitablePoint(pathsPX, currentPoint.x + 1, currentPoint.y, currentPoint.z, pathsNZ, currentPoint.x, currentPoint.y, currentPoint.z - 1, pathsPXNZ[k], currentPoint, this.checkObstructions, fitsThroughPoles, is3DPathing)) {
+            for(int k = 0; k < pathsPXNZ.length; k++) {
+                if(this.isSuitablePoint(pathsPX, currentPoint.x + 1, currentPoint.y, currentPoint.z, pathsNZ, currentPoint.x, currentPoint.y, currentPoint.z - 1, pathsPXNZ[k], currentPoint, this.checkObstructions, fitsThroughPoles, is3DPathing)) {
                     pathOptions[openedNodeCount++] = pathsPXNZ[k];
                 }
             }
         }
 
-        if (allowDiagonalPZ && allowDiagonalNX) {
+        if(allowDiagonalPZ && allowDiagonalNX) {
             DirectionalPathPoint[] pathsNXPZ = this.getSafePoints(currentPoint.x - 1, currentPoint.y, currentPoint.z + 1, stepHeight, height, NXPZ, this.checkObstructions);
 
-            for (int k = 0; k < pathsNXPZ.length; k++) {
-                if (this.isSuitablePoint(pathsNX, currentPoint.x - 1, currentPoint.y, currentPoint.z, pathsPZ, currentPoint.x, currentPoint.y, currentPoint.z + 1, pathsNXPZ[k], currentPoint, this.checkObstructions, fitsThroughPoles, is3DPathing)) {
+            for(int k = 0; k < pathsNXPZ.length; k++) {
+                if(this.isSuitablePoint(pathsNX, currentPoint.x - 1, currentPoint.y, currentPoint.z, pathsPZ, currentPoint.x, currentPoint.y, currentPoint.z + 1, pathsNXPZ[k], currentPoint, this.checkObstructions, fitsThroughPoles, is3DPathing)) {
                     pathOptions[openedNodeCount++] = pathsNXPZ[k];
                 }
             }
         }
 
-        if (allowDiagonalPZ && allowDiagonalPX) {
+        if(allowDiagonalPZ && allowDiagonalPX) {
             DirectionalPathPoint[] pathsPXPZ = this.getSafePoints(currentPoint.x + this.entityWidth, currentPoint.y, currentPoint.z + 1, stepHeight, height, PXPZ, this.checkObstructions);
 
             boolean foundDiagonal = false;
 
-            for (int k = 0; k < pathsPXPZ.length; k++) {
-                if (this.isSuitablePoint(pathsPX, currentPoint.x + 1, currentPoint.y, currentPoint.z, pathsPZ, currentPoint.x, currentPoint.y, currentPoint.z + 1, pathsPXPZ[k], currentPoint, this.checkObstructions, fitsThroughPoles, is3DPathing)) {
+            for(int k = 0; k < pathsPXPZ.length; k++) {
+                if(this.isSuitablePoint(pathsPX, currentPoint.x + 1, currentPoint.y, currentPoint.z, pathsPZ, currentPoint.x, currentPoint.y, currentPoint.z + 1, pathsPXPZ[k], currentPoint, this.checkObstructions, fitsThroughPoles, is3DPathing)) {
                     pathOptions[openedNodeCount++] = pathsPXPZ[k];
                     foundDiagonal = true;
                 }
             }
 
-            if (!foundDiagonal && (this.entityWidth != 1 || this.entityDepth != 1)) {
+            if(!foundDiagonal && (this.entityWidth != 1 || this.entityDepth != 1)) {
                 pathsPXPZ = this.getSafePoints(currentPoint.x + 1, currentPoint.y, currentPoint.z + this.entityDepth, stepHeight, height, PXPZ, this.checkObstructions);
 
-                for (int k = 0; k < pathsPXPZ.length; k++) {
-                    if (this.isSuitablePoint(pathsPX, currentPoint.x + 1, currentPoint.y, currentPoint.z, pathsPZ, currentPoint.x, currentPoint.y, currentPoint.z + 1, pathsPXPZ[k], currentPoint, this.checkObstructions, fitsThroughPoles, is3DPathing)) {
+                for(int k = 0; k < pathsPXPZ.length; k++) {
+                    if(this.isSuitablePoint(pathsPX, currentPoint.x + 1, currentPoint.y, currentPoint.z, pathsPZ, currentPoint.x, currentPoint.y, currentPoint.z + 1, pathsPXPZ[k], currentPoint, this.checkObstructions, fitsThroughPoles, is3DPathing)) {
                         pathOptions[openedNodeCount++] = pathsPXPZ[k];
                     }
                 }
             }
         }
 
-        if (this.pathableFacings.size() > 1) {
+        if(this.pathableFacings.size() > 1) {
             boolean allowDiagonalPY = this.allowDiagonalPathOptions(pathsPY);
             boolean allowDiagonalNY = this.allowDiagonalPathOptions(pathsNY);
 
-            if (allowDiagonalNY && allowDiagonalNX) {
+            if(allowDiagonalNY && allowDiagonalNX) {
                 DirectionalPathPoint[] pathsNYNX = this.getSafePoints(currentPoint.x - this.entityWidth, currentPoint.y - 1, currentPoint.z, stepHeight, height, NXNY, this.checkObstructions);
 
                 boolean foundDiagonal = false;
 
-                for (int k = 0; k < pathsNYNX.length; k++) {
-                    if (this.isSuitablePoint(pathsNY, currentPoint.x, currentPoint.y - 1, currentPoint.z, pathsNX, currentPoint.x - 1, currentPoint.y, currentPoint.z, pathsNYNX[k], currentPoint, this.checkObstructions, fitsThroughPoles, is3DPathing)) {
+                for(int k = 0; k < pathsNYNX.length; k++) {
+                    if(this.isSuitablePoint(pathsNY, currentPoint.x, currentPoint.y - 1, currentPoint.z, pathsNX, currentPoint.x - 1, currentPoint.y, currentPoint.z, pathsNYNX[k], currentPoint, this.checkObstructions, fitsThroughPoles, is3DPathing)) {
                         pathOptions[openedNodeCount++] = pathsNYNX[k];
                         foundDiagonal = true;
                     }
                 }
 
-                if (!foundDiagonal && (this.entityWidth != 1 || this.entityHeight != 1)) {
+                if(!foundDiagonal && (this.entityWidth != 1 || this.entityHeight != 1)) {
                     pathsNYNX = this.getSafePoints(currentPoint.x - 1, currentPoint.y - this.entityHeight, currentPoint.z, stepHeight, height, NXNY, this.checkObstructions);
 
-                    for (int k = 0; k < pathsNYNX.length; k++) {
-                        if (this.isSuitablePoint(pathsNY, currentPoint.x, currentPoint.y - 1, currentPoint.z, pathsNX, currentPoint.x - 1, currentPoint.y, currentPoint.z, pathsNYNX[k], currentPoint, this.checkObstructions, fitsThroughPoles, is3DPathing)) {
+                    for(int k = 0; k < pathsNYNX.length; k++) {
+                        if(this.isSuitablePoint(pathsNY, currentPoint.x, currentPoint.y - 1, currentPoint.z, pathsNX, currentPoint.x - 1, currentPoint.y, currentPoint.z, pathsNYNX[k], currentPoint, this.checkObstructions, fitsThroughPoles, is3DPathing)) {
                             pathOptions[openedNodeCount++] = pathsNYNX[k];
                         }
                     }
                 }
             }
 
-            if (allowDiagonalNY && allowDiagonalPX) {
+            if(allowDiagonalNY && allowDiagonalPX) {
                 DirectionalPathPoint[] pathsNYPX = this.getSafePoints(currentPoint.x + 1, currentPoint.y - 1, currentPoint.z, stepHeight, height, PXNY, this.checkObstructions);
 
-                for (int k = 0; k < pathsNYPX.length; k++) {
-                    if (this.isSuitablePoint(pathsNY, currentPoint.x, currentPoint.y - 1, currentPoint.z, pathsPX, currentPoint.x + 1, currentPoint.y, currentPoint.z, pathsNYPX[k], currentPoint, this.checkObstructions, fitsThroughPoles, is3DPathing)) {
+                for(int k = 0; k < pathsNYPX.length; k++) {
+                    if(this.isSuitablePoint(pathsNY, currentPoint.x, currentPoint.y - 1, currentPoint.z, pathsPX, currentPoint.x + 1, currentPoint.y, currentPoint.z, pathsNYPX[k], currentPoint, this.checkObstructions, fitsThroughPoles, is3DPathing)) {
                         pathOptions[openedNodeCount++] = pathsNYPX[k];
                     }
                 }
             }
 
-            if (allowDiagonalNY && allowDiagonalNZ) {
+            if(allowDiagonalNY && allowDiagonalNZ) {
                 DirectionalPathPoint[] pathsNYNZ = this.getSafePoints(currentPoint.x, currentPoint.y - this.entityHeight, currentPoint.z - 1, stepHeight, height, NYNZ, this.checkObstructions);
 
                 boolean foundDiagonal = false;
 
-                for (int k = 0; k < pathsNYNZ.length; k++) {
-                    if (this.isSuitablePoint(pathsNY, currentPoint.x, currentPoint.y - 1, currentPoint.z, pathsNZ, currentPoint.x, currentPoint.y, currentPoint.z - 1, pathsNYNZ[k], currentPoint, this.checkObstructions, fitsThroughPoles, is3DPathing)) {
+                for(int k = 0; k < pathsNYNZ.length; k++) {
+                    if(this.isSuitablePoint(pathsNY, currentPoint.x, currentPoint.y - 1, currentPoint.z, pathsNZ, currentPoint.x, currentPoint.y, currentPoint.z - 1, pathsNYNZ[k], currentPoint, this.checkObstructions, fitsThroughPoles, is3DPathing)) {
                         pathOptions[openedNodeCount++] = pathsNYNZ[k];
                         foundDiagonal = true;
                     }
                 }
 
-                if (!foundDiagonal && (this.entityHeight != 1 || this.entityDepth != 1)) {
+                if(!foundDiagonal && (this.entityHeight != 1 || this.entityDepth != 1)) {
                     pathsNYNZ = this.getSafePoints(currentPoint.x, currentPoint.y - 1, currentPoint.z - this.entityDepth, stepHeight, height, NYNZ, this.checkObstructions);
 
-                    for (int k = 0; k < pathsNYNZ.length; k++) {
-                        if (this.isSuitablePoint(pathsNY, currentPoint.x, currentPoint.y - 1, currentPoint.z, pathsNZ, currentPoint.x, currentPoint.y, currentPoint.z - 1, pathsNYNZ[k], currentPoint, this.checkObstructions, fitsThroughPoles, is3DPathing)) {
+                    for(int k = 0; k < pathsNYNZ.length; k++) {
+                        if(this.isSuitablePoint(pathsNY, currentPoint.x, currentPoint.y - 1, currentPoint.z, pathsNZ, currentPoint.x, currentPoint.y, currentPoint.z - 1, pathsNYNZ[k], currentPoint, this.checkObstructions, fitsThroughPoles, is3DPathing)) {
                             pathOptions[openedNodeCount++] = pathsNYNZ[k];
                         }
                     }
                 }
             }
 
-            if (allowDiagonalNY && allowDiagonalPZ) {
+            if(allowDiagonalNY && allowDiagonalPZ) {
                 DirectionalPathPoint[] pathsNYPZ = this.getSafePoints(currentPoint.x, currentPoint.y - 1, currentPoint.z + 1, stepHeight, height, NYPZ, this.checkObstructions);
 
-                for (int k = 0; k < pathsNYPZ.length; k++) {
-                    if (this.isSuitablePoint(pathsNY, currentPoint.x, currentPoint.y - 1, currentPoint.z, pathsPZ, currentPoint.x, currentPoint.y, currentPoint.z + 1, pathsNYPZ[k], currentPoint, this.checkObstructions, fitsThroughPoles, is3DPathing)) {
+                for(int k = 0; k < pathsNYPZ.length; k++) {
+                    if(this.isSuitablePoint(pathsNY, currentPoint.x, currentPoint.y - 1, currentPoint.z, pathsPZ, currentPoint.x, currentPoint.y, currentPoint.z + 1, pathsNYPZ[k], currentPoint, this.checkObstructions, fitsThroughPoles, is3DPathing)) {
                         pathOptions[openedNodeCount++] = pathsNYPZ[k];
                     }
                 }
             }
 
-            if (allowDiagonalPY && allowDiagonalNX) {
+            if(allowDiagonalPY && allowDiagonalNX) {
                 DirectionalPathPoint[] pathsPYNX = this.getSafePoints(currentPoint.x - 1, currentPoint.y + 1, currentPoint.z, stepHeight, height, NXPY, this.checkObstructions);
 
-                for (int k = 0; k < pathsPYNX.length; k++) {
-                    if (this.isSuitablePoint(pathsPY, currentPoint.x, currentPoint.y + 1, currentPoint.z, pathsNZ, currentPoint.x - 1, currentPoint.y, currentPoint.z, pathsPYNX[k], currentPoint, this.checkObstructions, fitsThroughPoles, is3DPathing)) {
+                for(int k = 0; k < pathsPYNX.length; k++) {
+                    if(this.isSuitablePoint(pathsPY, currentPoint.x, currentPoint.y + 1, currentPoint.z, pathsNZ, currentPoint.x - 1, currentPoint.y, currentPoint.z, pathsPYNX[k], currentPoint, this.checkObstructions, fitsThroughPoles, is3DPathing)) {
                         pathOptions[openedNodeCount++] = pathsPYNX[k];
                     }
                 }
             }
 
-            if (allowDiagonalPY && allowDiagonalPX) {
+            if(allowDiagonalPY && allowDiagonalPX) {
                 DirectionalPathPoint[] pathsPYPX = this.getSafePoints(currentPoint.x + this.entityWidth, currentPoint.y + 1, currentPoint.z, stepHeight, height, PXPY, this.checkObstructions);
 
                 boolean foundDiagonal = false;
 
-                for (int k = 0; k < pathsPYPX.length; k++) {
-                    if (this.isSuitablePoint(pathsPY, currentPoint.x, currentPoint.y + 1, currentPoint.z, pathsPX, currentPoint.x + 1, currentPoint.y, currentPoint.z, pathsPYPX[k], currentPoint, this.checkObstructions, fitsThroughPoles, is3DPathing)) {
+                for(int k = 0; k < pathsPYPX.length; k++) {
+                    if(this.isSuitablePoint(pathsPY, currentPoint.x, currentPoint.y + 1, currentPoint.z, pathsPX, currentPoint.x + 1, currentPoint.y, currentPoint.z, pathsPYPX[k], currentPoint, this.checkObstructions, fitsThroughPoles, is3DPathing)) {
                         pathOptions[openedNodeCount++] = pathsPYPX[k];
                         foundDiagonal = true;
                     }
                 }
 
-                if (!foundDiagonal && (this.entityWidth != 1 || this.entityHeight != 1)) {
+                if(!foundDiagonal && (this.entityWidth != 1 || this.entityHeight != 1)) {
                     pathsPYPX = this.getSafePoints(currentPoint.x + 1, currentPoint.y + this.entityHeight, currentPoint.z, stepHeight, height, PXPY, this.checkObstructions);
 
-                    for (int k = 0; k < pathsPYPX.length; k++) {
-                        if (this.isSuitablePoint(pathsPY, currentPoint.x, currentPoint.y + 1, currentPoint.z, pathsPX, currentPoint.x + 1, currentPoint.y, currentPoint.z, pathsPYPX[k], currentPoint, this.checkObstructions, fitsThroughPoles, is3DPathing)) {
+                    for(int k = 0; k < pathsPYPX.length; k++) {
+                        if(this.isSuitablePoint(pathsPY, currentPoint.x, currentPoint.y + 1, currentPoint.z, pathsPX, currentPoint.x + 1, currentPoint.y, currentPoint.z, pathsPYPX[k], currentPoint, this.checkObstructions, fitsThroughPoles, is3DPathing)) {
                             pathOptions[openedNodeCount++] = pathsPYPX[k];
                         }
                     }
                 }
             }
 
-            if (allowDiagonalPY && allowDiagonalNZ) {
+            if(allowDiagonalPY && allowDiagonalNZ) {
                 DirectionalPathPoint[] pathsPYNZ = this.getSafePoints(currentPoint.x, currentPoint.y + 1, currentPoint.z - 1, stepHeight, height, PYNZ, this.checkObstructions);
 
-                for (int k = 0; k < pathsPYNZ.length; k++) {
-                    if (this.isSuitablePoint(pathsPY, currentPoint.x, currentPoint.y + 1, currentPoint.z, pathsNZ, currentPoint.x, currentPoint.y, currentPoint.z - 1, pathsPYNZ[k], currentPoint, this.checkObstructions, fitsThroughPoles, is3DPathing)) {
+                for(int k = 0; k < pathsPYNZ.length; k++) {
+                    if(this.isSuitablePoint(pathsPY, currentPoint.x, currentPoint.y + 1, currentPoint.z, pathsNZ, currentPoint.x, currentPoint.y, currentPoint.z - 1, pathsPYNZ[k], currentPoint, this.checkObstructions, fitsThroughPoles, is3DPathing)) {
                         pathOptions[openedNodeCount++] = pathsPYNZ[k];
                     }
                 }
             }
 
-            if (allowDiagonalPY && allowDiagonalPZ) {
+            if(allowDiagonalPY && allowDiagonalPZ) {
                 DirectionalPathPoint[] pathsPYPZ = this.getSafePoints(currentPoint.x, currentPoint.y + this.entityHeight, currentPoint.z + 1, stepHeight, height, PYPZ, this.checkObstructions);
 
                 boolean foundDiagonal = false;
 
-                for (int k = 0; k < pathsPYPZ.length; k++) {
-                    if (this.isSuitablePoint(pathsPY, currentPoint.x, currentPoint.y + 1, currentPoint.z, pathsPZ, currentPoint.x, currentPoint.y, currentPoint.z + 1, pathsPYPZ[k], currentPoint, this.checkObstructions, fitsThroughPoles, is3DPathing)) {
+                for(int k = 0; k < pathsPYPZ.length; k++) {
+                    if(this.isSuitablePoint(pathsPY, currentPoint.x, currentPoint.y + 1, currentPoint.z, pathsPZ, currentPoint.x, currentPoint.y, currentPoint.z + 1, pathsPYPZ[k], currentPoint, this.checkObstructions, fitsThroughPoles, is3DPathing)) {
                         pathOptions[openedNodeCount++] = pathsPYPZ[k];
                         foundDiagonal = true;
                     }
                 }
 
-                if (!foundDiagonal && (this.entityHeight != 1 || this.entityDepth != 1)) {
+                if(!foundDiagonal && (this.entityHeight != 1 || this.entityDepth != 1)) {
                     pathsPYPZ = this.getSafePoints(currentPoint.x, currentPoint.y + 1, currentPoint.z + this.entityDepth, stepHeight, height, PYPZ, this.checkObstructions);
 
-                    for (int k = 0; k < pathsPYPZ.length; k++) {
-                        if (this.isSuitablePoint(pathsPY, currentPoint.x, currentPoint.y + 1, currentPoint.z, pathsPZ, currentPoint.x, currentPoint.y, currentPoint.z + 1, pathsPYPZ[k], currentPoint, this.checkObstructions, fitsThroughPoles, is3DPathing)) {
+                    for(int k = 0; k < pathsPYPZ.length; k++) {
+                        if(this.isSuitablePoint(pathsPY, currentPoint.x, currentPoint.y + 1, currentPoint.z, pathsPZ, currentPoint.x, currentPoint.y, currentPoint.z + 1, pathsPYPZ[k], currentPoint, this.checkObstructions, fitsThroughPoles, is3DPathing)) {
                             pathOptions[openedNodeCount++] = pathsPYPZ[k];
                         }
                     }
@@ -646,7 +532,7 @@ public class AdvancedWalkNodeProcessor extends WalkNodeEvaluator {
     }
 
     protected boolean isTraversible(DirectionalPathPoint from, DirectionalPathPoint to) {
-        if (this.canFloat() && (from.type == BlockPathTypes.WATER || from.type == BlockPathTypes.WATER_BORDER || from.type == BlockPathTypes.LAVA || to.type == BlockPathTypes.WATER || to.type == BlockPathTypes.WATER_BORDER || to.type == BlockPathTypes.LAVA)) {
+        if(this.canFloat() && (from.type == PathType.WATER || from.type == PathType.WATER_BORDER || from.type == PathType.LAVA || to.type == PathType.WATER || to.type == PathType.WATER_BORDER || to.type == PathType.LAVA)) {
             //When swimming it can always reach any side
             return true;
         }
@@ -660,25 +546,44 @@ public class AdvancedWalkNodeProcessor extends WalkNodeEvaluator {
         Direction[] fromDirections = from.getPathableSides();
         Direction[] toDirections = to.getPathableSides();
 
-        for (int i = 0; i < fromDirections.length; i++) {
+        for(int i = 0; i < fromDirections.length; i++) {
             Direction d1 = fromDirections[i];
 
-            for (int j = 0; j < toDirections.length; j++) {
+            for(int j = 0; j < toDirections.length; j++) {
                 Direction d2 = toDirections[j];
 
-                if (d1 == d2) {
+                if(d1 == d2) {
                     return true;
-                } else if (isDiagonal) {
+                } else if(isDiagonal) {
                     Axis a1 = d1.getAxis();
                     Axis a2 = d2.getAxis();
 
-                    if ((a1 == Axis.X && a2 == Axis.Y) || (a1 == Axis.Y && a2 == Axis.X)) {
+                    if((a1 == Axis.X && a2 == Axis.Y) || (a1 == Axis.Y && a2 == Axis.X)) {
                         return !dz;
-                    } else if ((a1 == Axis.X && a2 == Axis.Z) || (a1 == Axis.Z && a2 == Axis.X)) {
+                    } else if((a1 == Axis.X && a2 == Axis.Z) || (a1 == Axis.Z && a2 == Axis.X)) {
                         return !dy;
-                    } else if ((a1 == Axis.Z && a2 == Axis.Y) || (a1 == Axis.Y && a2 == Axis.Z)) {
+                    } else if((a1 == Axis.Z && a2 == Axis.Y) || (a1 == Axis.Y && a2 == Axis.Z)) {
                         return !dx;
                     }
+                }
+            }
+        }
+
+        return false;
+    }
+
+    protected static boolean isSharingDirection(DirectionalPathPoint from, DirectionalPathPoint to) {
+        Direction[] fromDirections = from.getPathableSides();
+        Direction[] toDirections = to.getPathableSides();
+
+        for(int i = 0; i < fromDirections.length; i++) {
+            Direction d1 = fromDirections[i];
+
+            for(int j = 0; j < toDirections.length; j++) {
+                Direction d2 = toDirections[j];
+
+                if(d1 == d2) {
+                    return true;
                 }
             }
         }
@@ -691,10 +596,10 @@ public class AdvancedWalkNodeProcessor extends WalkNodeEvaluator {
     }
 
     protected boolean isSuitablePoint(@Nullable DirectionalPathPoint[] newPoints1, int np1x, int np1y, int np1z, @Nullable DirectionalPathPoint[] newPoints2, int np2x, int np2y, int np2z, @Nullable DirectionalPathPoint newPointDiagonal, DirectionalPathPoint currentPoint, boolean allowObstructions, boolean fitsThroughPoles, boolean is3DPathing) {
-        if (!is3DPathing) {
-            if (newPointDiagonal != null && !newPointDiagonal.closed && newPoints2 != null && newPoints2.length > 0 && (newPoints2[0] != null || (newPoints2.length > 1 && newPoints2[1] != null)) && newPoints1 != null && newPoints1.length > 0 && (newPoints1[0] != null || (newPoints1.length > 1 && newPoints1[1] != null))) {
-                if ((newPoints1[0] == null || newPoints1[0].type != BlockPathTypes.WALKABLE_DOOR) && (newPoints2[0] == null || newPoints2[0].type != BlockPathTypes.WALKABLE_DOOR) && newPointDiagonal.type != BlockPathTypes.WALKABLE_DOOR) {
-                    boolean canPassPoleDiagonally = newPoints2[0] != null && newPoints2[0].type == BlockPathTypes.FENCE && newPoints1[0] != null && newPoints1[0].type == BlockPathTypes.FENCE && fitsThroughPoles;
+        if(!is3DPathing) {
+            if(newPointDiagonal != null && !newPointDiagonal.closed && newPoints2 != null && newPoints2.length > 0 && (newPoints2[0] != null || (newPoints2.length > 1 && newPoints2[1] != null)) && newPoints1 != null && newPoints1.length > 0 && (newPoints1[0] != null || (newPoints1.length > 1 && newPoints1[1] != null))) {
+                if((newPoints1[0] == null || newPoints1[0].type != PathType.WALKABLE_DOOR) && (newPoints2[0] == null || newPoints2[0].type != PathType.WALKABLE_DOOR) && newPointDiagonal.type != PathType.WALKABLE_DOOR) {
+                    boolean canPassPoleDiagonally = newPoints2[0] != null && newPoints2[0].type == PathType.FENCE && newPoints1[0] != null && newPoints1[0].type == PathType.FENCE && fitsThroughPoles;
                     return (allowObstructions || newPointDiagonal.costMalus >= 0.0F) &&
                             (canPassPoleDiagonally || (
                                     ((newPoints2[0] != null && (allowObstructions || newPoints2[0].costMalus >= 0.0F)) || (newPoints2.length > 1 && newPoints2[1] != null && (allowObstructions || newPoints2[1].costMalus >= 0.0F))) &&
@@ -703,14 +608,14 @@ public class AdvancedWalkNodeProcessor extends WalkNodeEvaluator {
                 }
             }
         } else {
-            if (newPointDiagonal != null && !newPointDiagonal.closed && this.isTraversible(currentPoint, newPointDiagonal)) {
+            if(newPointDiagonal != null && !newPointDiagonal.closed && this.isTraversible(currentPoint, newPointDiagonal)) {
                 long packed2 = this.getDirectionalPathNodeTypeCached(this.mob, np2x, np2y, np2z);
-                BlockPathTypes pathNodeType2 = unpackNodeType(packed2);
-                boolean open2 = (pathNodeType2 == BlockPathTypes.OPEN || pathNodeType2 == BlockPathTypes.WALKABLE);
+                PathType pathNodeType2 = unpackNodeType(packed2);
+                boolean open2 = (pathNodeType2 == PathType.OPEN || pathNodeType2 == PathType.WALKABLE);
 
                 long packed1 = this.getDirectionalPathNodeTypeCached(this.mob, np1x, np1y, np1z);
-                BlockPathTypes pathNodeType1 = unpackNodeType(packed1);
-                boolean open1 = (pathNodeType1 == BlockPathTypes.OPEN || pathNodeType1 == BlockPathTypes.WALKABLE);
+                PathType pathNodeType1 = unpackNodeType(packed1);
+                boolean open1 = (pathNodeType1 == PathType.OPEN || pathNodeType1 == PathType.WALKABLE);
 
                 return (open1 != open2) || (open1 == true && open2 == true && isSharingDirection(newPointDiagonal, currentPoint));
             }
@@ -726,7 +631,7 @@ public class AdvancedWalkNodeProcessor extends WalkNodeEvaluator {
             return new DirectionalPathPoint(x, y, z, packed, isDrop);
         });
 
-        if (point instanceof DirectionalPathPoint == false) {
+        if(point instanceof DirectionalPathPoint == false) {
             point = new DirectionalPathPoint(point);
             this.nodes.put(hash, point);
         }
@@ -740,52 +645,52 @@ public class AdvancedWalkNodeProcessor extends WalkNodeEvaluator {
 
         BlockPos pos = new BlockPos(x, y, z);
 
-        double blockHeight = y - getFloorLevel(this.level, new BlockPos(x, y, z));
+        double blockHeight = y - getFloorLevel(this.currentContext.level(), new BlockPos(x, y, z));
 
         if (blockHeight - height > 1.125D) {
             return new DirectionalPathPoint[0];
         } else {
             final long initialPacked = this.getDirectionalPathNodeTypeCached(this.mob, x, y, z);
             long packed = initialPacked;
-            BlockPathTypes nodeType = unpackNodeType(packed);
+            PathType nodeType = unpackNodeType(packed);
 
-            float malus = this.advancedPathFindingEntity.getPathingMalus(this.level, this.mob, nodeType, pos, direction, dir -> unpackDirection(dir, initialPacked)); //Replaces EntityLiving#getPathPriority
+            float malus = this.advancedPathFindingEntity.getPathingMalus(this.currentContext.level(), this.mob, nodeType, pos, direction, dir -> unpackDirection(dir, initialPacked)); //Replaces EntityLiving#getPathPriority
 
-            double halfWidth = (double) this.mob.getBbWidth() / 2.0D;
+            double halfWidth = (double)this.mob.getBbWidth() / 2.0D;
 
             DirectionalPathPoint[] result = new DirectionalPathPoint[1];
 
-            if (malus >= 0.0F && (allowBlocked || nodeType != BlockPathTypes.BLOCKED)) {
+            if(malus >= 0.0F && (allowBlocked || nodeType != PathType.BLOCKED)) {
                 directPathPoint = this.openPoint(x, y, z, packed, false);
                 directPathPoint.type = nodeType;
                 directPathPoint.costMalus = Math.max(directPathPoint.costMalus, malus);
 
                 //Allow other nodes than this obstructed node to also be considered, otherwise jumping/pathing up steps does no longer work
-                if (directPathPoint.type == BlockPathTypes.BLOCKED) {
+                if(directPathPoint.type == PathType.BLOCKED) {
                     result = new DirectionalPathPoint[2];
                     result[1] = directPathPoint;
                     directPathPoint = null;
                 }
             }
 
-            if (nodeType == BlockPathTypes.WALKABLE) {
+            if(nodeType == PathType.WALKABLE) {
                 result[0] = directPathPoint;
                 return result;
             } else {
-                if (directPathPoint == null && stepHeight > 0 && nodeType != BlockPathTypes.FENCE && nodeType != BlockPathTypes.UNPASSABLE_RAIL && nodeType != BlockPathTypes.TRAPDOOR && direction.getY() == 0 && Math.abs(direction.getX()) + Math.abs(direction.getY()) + Math.abs(direction.getZ()) == 1) {
+                if (directPathPoint == null && stepHeight > 0 && nodeType != PathType.FENCE && nodeType != PathType.UNPASSABLE_RAIL && nodeType != PathType.TRAPDOOR && direction.getY() == 0 && Math.abs(direction.getX()) + Math.abs(direction.getY()) + Math.abs(direction.getZ()) == 1) {
                     DirectionalPathPoint[] pointsAbove = this.getSafePoints(x, y + 1, z, stepHeight - 1, height, direction, false);
                     directPathPoint = pointsAbove.length > 0 ? pointsAbove[0] : null;
 
-                    if (directPathPoint != null && (directPathPoint.type == BlockPathTypes.OPEN || directPathPoint.type == BlockPathTypes.WALKABLE) && this.mob.getBbWidth() < 1.0F) {
+                    if(directPathPoint != null && (directPathPoint.type == PathType.OPEN || directPathPoint.type == PathType.WALKABLE) && this.mob.getBbWidth() < 1.0F) {
                         double offsetX = (x - direction.getX()) + 0.5D;
                         double offsetZ = (z - direction.getY()) + 0.5D;
 
                         AABB enclosingAabb = new AABB(
                                 offsetX - halfWidth,
-                                getFloorLevel(this.level, new BlockPos(offsetX, (double) (y + 1), offsetZ)) + 0.001D,
+                                getFloorLevel(this.currentContext.level(), BlockPos.containing(offsetX, (y + 1), offsetZ)) + 0.001D,
                                 offsetZ - halfWidth,
                                 offsetX + halfWidth,
-                                (double) this.mob.getBbHeight() + getFloorLevel(this.level, new BlockPos(directPathPoint.x, directPathPoint.y, directPathPoint.z)) - 0.002D,
+                                (double)this.mob.getBbHeight() + getFloorLevel(this.currentContext.level(), new BlockPos(directPathPoint.x, directPathPoint.y, directPathPoint.z)) - 0.002D,
                                 offsetZ + halfWidth);
                         if (this.checkAabbCollision(enclosingAabb)) {
                             directPathPoint = null;
@@ -793,26 +698,26 @@ public class AdvancedWalkNodeProcessor extends WalkNodeEvaluator {
                     }
                 }
 
-                if (nodeType == BlockPathTypes.OPEN) {
+                if(nodeType == PathType.OPEN) {
                     directPathPoint = null;
 
-                    AABB checkAabb = new AABB((double) x - halfWidth + 0.5D, (double) y + 0.001D, (double) z - halfWidth + 0.5D, (double) x + halfWidth + 0.5D, (double) ((float) y + this.mob.getBbHeight()), (double) z + halfWidth + 0.5D);
+                    AABB checkAabb = new AABB((double)x - halfWidth + 0.5D, (double)y + 0.001D, (double)z - halfWidth + 0.5D, (double)x + halfWidth + 0.5D, ((float)y + this.mob.getBbHeight()), (double)z + halfWidth + 0.5D);
 
-                    if (this.checkAabbCollision(checkAabb)) {
+                    if(this.checkAabbCollision(checkAabb)) {
                         result[0] = null;
                         return result;
                     }
 
-                    if (this.mob.getBbWidth() >= 1.0F) {
-                        for (int i = 0; i < this.pathableFacingsArray.length; i++) {
+                    if(this.mob.getBbWidth() >= 1.0F) {
+                        for(int i = 0; i < this.pathableFacingsArray.length; i++) {
                             Direction pathableFacing = this.pathableFacingsArray[i];
 
                             long packedAtFacing = this.getDirectionalPathNodeTypeCached(this.mob, x + pathableFacing.getStepX() * this.pathingSizeOffsetX, y + (pathableFacing == Direction.DOWN ? -1 : pathableFacing == Direction.UP ? this.pathingSizeOffsetY : 0), z + pathableFacing.getStepZ() * this.pathingSizeOffsetZ);
-                            BlockPathTypes nodeTypeAtFacing = unpackNodeType(packedAtFacing);
+                            PathType nodeTypeAtFacing = unpackNodeType(packedAtFacing);
 
-                            if (nodeTypeAtFacing == BlockPathTypes.BLOCKED) {
+                            if(nodeTypeAtFacing == PathType.BLOCKED) {
                                 directPathPoint = this.openPoint(x, y, z, packedAtFacing, false);
-                                directPathPoint.type = BlockPathTypes.WALKABLE;
+                                directPathPoint.type = PathType.WALKABLE;
                                 directPathPoint.costMalus = Math.max(directPathPoint.costMalus, malus);
                                 result[0] = directPathPoint;
                                 return result;
@@ -827,10 +732,10 @@ public class AdvancedWalkNodeProcessor extends WalkNodeEvaluator {
                     int fallDistance = 0;
                     int preFallY = y;
 
-                    while (y > 0 && nodeType == BlockPathTypes.OPEN) {
+                    while(y > this.currentContext.level().getMinY() && nodeType == PathType.OPEN) {
                         --y;
 
-                        if (fallDistance++ >= Math.max(1, this.mob.getMaxFallDistance()) /*at least one chance is required for swimming*/ || y == 0) {
+                        if(fallDistance++ >= Math.max(1, this.mob.getMaxFallDistance()) /*at least one chance is required for swimming*/ || y == 0) {
                             cancelFallDown = true;
                             break;
                         }
@@ -840,28 +745,28 @@ public class AdvancedWalkNodeProcessor extends WalkNodeEvaluator {
 
                         malus = this.mob.getPathfindingMalus(nodeType);
 
-                        if (((this.mob.getMaxFallDistance() > 0 && nodeType != BlockPathTypes.OPEN) || nodeType == BlockPathTypes.WATER || nodeType == BlockPathTypes.LAVA) && malus >= 0.0F) {
+                        if(((this.mob.getMaxFallDistance() > 0 && nodeType != PathType.OPEN) || nodeType == PathType.WATER || nodeType == PathType.LAVA) && malus >= 0.0F) {
                             fallPathPoint = this.openPoint(x, y, z, packed, true);
                             fallPathPoint.type = nodeType;
                             fallPathPoint.costMalus = Math.max(fallPathPoint.costMalus, malus);
                             break;
                         }
 
-                        if (malus < 0.0F) {
+                        if(malus < 0.0F) {
                             cancelFallDown = true;
                         }
                     }
 
                     boolean hasPathUp = false;
 
-                    if (this.pathableFacings.size() > 1) {
+                    if(this.pathableFacings.size() > 1) {
                         packed = this.getDirectionalPathNodeTypeCached(this.mob, x, preFallY, z);
                         nodeType = unpackNodeType(packed);
 
                         malus = this.mob.getPathfindingMalus(nodeType);
 
-                        if (nodeType != BlockPathTypes.OPEN && malus >= 0.0F) {
-                            if (fallPathPoint != null) {
+                        if(nodeType != PathType.OPEN && malus >= 0.0F) {
+                            if(fallPathPoint != null) {
                                 result = new DirectionalPathPoint[2];
                                 result[1] = fallPathPoint;
                             }
@@ -873,8 +778,8 @@ public class AdvancedWalkNodeProcessor extends WalkNodeEvaluator {
                         }
                     }
 
-                    if (fallPathPoint != null) {
-                        if (!hasPathUp) {
+                    if(fallPathPoint != null) {
+                        if(!hasPathUp) {
                             result[0] = directPathPoint = fallPathPoint;
                         } else {
                             result = new DirectionalPathPoint[2];
@@ -883,30 +788,30 @@ public class AdvancedWalkNodeProcessor extends WalkNodeEvaluator {
                         }
                     }
 
-                    if (fallPathPoint != null) {
+                    if(fallPathPoint != null) {
                         float bridingMalus = this.advancedPathFindingEntity.getBridgePathingMalus(this.mob, new BlockPos(x, preFallY, z), fallPathPoint);
 
-                        if (bridingMalus >= 0.0f) {
+                        if(bridingMalus >= 0.0f) {
                             result = new DirectionalPathPoint[2];
                             result[0] = directPathPoint;
 
                             DirectionalPathPoint bridgePathPoint = this.openPoint(x, preFallY, z, packed, false);
-                            bridgePathPoint.type = BlockPathTypes.WALKABLE;
+                            bridgePathPoint.type = PathType.WALKABLE;
                             bridgePathPoint.costMalus = Math.max(bridgePathPoint.costMalus, bridingMalus);
                             result[1] = bridgePathPoint;
                         }
                     }
 
-                    if (cancelFallDown && !hasPathUp) {
+                    if(cancelFallDown && !hasPathUp) {
                         result[0] = null;
-                        if (result.length == 2) {
+                        if(result.length == 2) {
                             result[1] = null;
                         }
                         return result;
                     }
                 }
 
-                if (nodeType == BlockPathTypes.FENCE) {
+                if(nodeType == PathType.FENCE) {
                     directPathPoint = this.openPoint(x, y, z, packed, false);
                     directPathPoint.closed = true;
                     directPathPoint.type = nodeType;
@@ -921,65 +826,101 @@ public class AdvancedWalkNodeProcessor extends WalkNodeEvaluator {
 
     protected long getDirectionalPathNodeTypeCached(Mob entitylivingIn, int x, int y, int z) {
         return this.pathNodeTypeCache.computeIfAbsent(BlockPos.asLong(x, y, z), (key) -> {
-            return this.getDirectionalPathNodeType(this.level, x, y, z, entitylivingIn, this.entityWidth, this.entityHeight, this.entityDepth, this.canOpenDoors(), this.canPassDoors());
+            return this.getDirectionalPathNodeType(this.currentContext, x, y, z, entitylivingIn, this.entityWidth, this.entityHeight, this.entityDepth, this.canOpenDoors(), this.canPassDoors());
         });
     }
 
-    @Override
-    public BlockPathTypes getBlockPathType(BlockGetter blockaccessIn, int x, int y, int z, Mob entity, int xSize, int ySize, int zSize, boolean canBreakDoorsIn, boolean canEnterDoorsIn) {
-        return unpackNodeType(this.getDirectionalPathNodeType(blockaccessIn, x, y, z, entity, xSize, ySize, zSize, canBreakDoorsIn, canEnterDoorsIn));
+    static long packDirection(Direction facing, long packed) {
+        return packed | (1L << facing.ordinal());
     }
 
-    protected long getDirectionalPathNodeType(BlockGetter blockaccessIn, int x, int y, int z, Mob entity, int xSize, int ySize, int zSize, boolean canBreakDoorsIn, boolean canEnterDoorsIn) {
-        BlockPos pos = new BlockPos(entity.position());
+    static long packDirection(long packed1, long packed2) {
+        return (packed1 & ~0xFFFFFFFFL) | (packed1 & 0xFFFFFFFFL) | (packed2 & 0xFFFFFFFFL);
+    }
 
-        EnumSet<BlockPathTypes> applicablePathNodeTypes = EnumSet.noneOf(BlockPathTypes.class);
+    static boolean unpackDirection(Direction facing, long packed) {
+        return (packed & (1L << facing.ordinal())) != 0;
+    }
 
-        long centerPacked = this.getDirectionalPathNodeType(blockaccessIn, x, y, z, xSize, ySize, zSize, canBreakDoorsIn, canEnterDoorsIn, applicablePathNodeTypes, BlockPathTypes.BLOCKED, pos);
-        BlockPathTypes centerPathNodeType = unpackNodeType(centerPacked);
+    static boolean unpackDirection(long packed) {
+        return (packed & 0xFFFFFFFFL) != 0;
+    }
 
-        if (applicablePathNodeTypes.contains(BlockPathTypes.FENCE)) {
-            return packNodeType(BlockPathTypes.FENCE, centerPacked);
-        } else if (applicablePathNodeTypes.contains(BlockPathTypes.UNPASSABLE_RAIL)) {
-            return packNodeType(BlockPathTypes.UNPASSABLE_RAIL, centerPacked);
+    static long packNodeType(PathType type, long packed) {
+        return ((long) type.ordinal() << 32) | (packed & 0xFFFFFFFFL);
+    }
+
+    static PathType unpackNodeType(long packed) {
+        return PATH_NODE_TYPES[(int) (packed >> 32)];
+    }
+
+
+
+    @Override
+    @NotNull
+    public PathType getPathTypeOfMob(PathfindingContext blockaccessIn, int x, int y, int z, Mob entity) {
+        return unpackNodeType(this.getDirectionalPathNodeType(blockaccessIn, x, y, z, entity, 0, 0, 0, false, false));
+    }
+
+    protected long getDirectionalPathNodeType(PathfindingContext blockaccessIn, int x, int y, int z, Mob entity, int xSize, int ySize, int zSize, boolean canBreakDoorsIn, boolean canEnterDoorsIn) {
+        BlockPos pos = entity.blockPosition();
+
+        EnumSet<PathType> applicablePathNodeTypes = EnumSet.noneOf(PathType.class);
+
+        long centerPacked = this.getDirectionalPathNodeType(blockaccessIn, x, y, z, xSize, ySize, zSize, canBreakDoorsIn, canEnterDoorsIn, applicablePathNodeTypes, PathType.BLOCKED, pos);
+        PathType centerPathNodeType = unpackNodeType(centerPacked);
+
+        if(applicablePathNodeTypes.contains(PathType.FENCE)) {
+            return packNodeType(PathType.FENCE, centerPacked);
+        } else if(applicablePathNodeTypes.contains(PathType.UNPASSABLE_RAIL)) {
+            return packNodeType(PathType.UNPASSABLE_RAIL, centerPacked);
         } else {
-            BlockPathTypes selectedPathNodeType = BlockPathTypes.BLOCKED;
+            PathType selectedPathNodeType = PathType.BLOCKED;
 
-            for (BlockPathTypes applicablePathNodeType : applicablePathNodeTypes) {
-                if (entity.getPathfindingMalus(applicablePathNodeType) < 0.0F) {
+            for(PathType applicablePathNodeType : applicablePathNodeTypes) {
+                if(entity.getPathfindingMalus(applicablePathNodeType) < 0.0F) {
                     return packNodeType(applicablePathNodeType, centerPacked);
                 }
 
                 float p1 = entity.getPathfindingMalus(applicablePathNodeType);
                 float p2 = entity.getPathfindingMalus(selectedPathNodeType);
-                if (p1 > p2 || (p1 == p2 && !(selectedPathNodeType == BlockPathTypes.WALKABLE && applicablePathNodeType == BlockPathTypes.OPEN)) || (p1 == p2 && selectedPathNodeType == BlockPathTypes.OPEN && applicablePathNodeType == BlockPathTypes.WALKABLE)) {
+                if(p1 > p2 || (p1 == p2 && !(selectedPathNodeType == PathType.WALKABLE && applicablePathNodeType == PathType.OPEN)) || (p1 == p2 && selectedPathNodeType == PathType.OPEN && applicablePathNodeType == PathType.WALKABLE)) {
                     selectedPathNodeType = applicablePathNodeType;
                 }
             }
 
-            if (centerPathNodeType == BlockPathTypes.OPEN && entity.getPathfindingMalus(selectedPathNodeType) == 0.0F) {
-                return packNodeType(BlockPathTypes.OPEN, 0L);
+            if(centerPathNodeType == PathType.OPEN && entity.getPathfindingMalus(selectedPathNodeType) == 0.0F) {
+                return packNodeType(PathType.OPEN, 0L);
             } else {
                 return packNodeType(selectedPathNodeType, centerPacked);
             }
         }
     }
 
-    protected long getDirectionalPathNodeType(BlockGetter blockaccessIn, int x, int y, int z, int xSize, int ySize, int zSize, boolean canOpenDoorsIn, boolean canEnterDoorsIn, EnumSet<BlockPathTypes> nodeTypeEnum, BlockPathTypes nodeType, BlockPos pos) {
+    protected long getDirectionalPathNodeType(PathfindingContext blockaccessIn, int x, int y, int z, int xSize, int ySize, int zSize, boolean canOpenDoorsIn, boolean canEnterDoorsIn, EnumSet<PathType> nodeTypeEnum, PathType nodeType, BlockPos pos) {
         long packed = 0L;
 
-        for (int ox = 0; ox < xSize; ++ox) {
-            for (int oy = 0; oy < ySize; ++oy) {
-                for (int oz = 0; oz < zSize; ++oz) {
+        for(int ox = 0; ox < xSize; ++ox) {
+            for(int oy = 0; oy < ySize; ++oy) {
+                for(int oz = 0; oz < zSize; ++oz) {
                     int bx = ox + x;
                     int by = oy + y;
                     int bz = oz + z;
 
                     long packedAdjusted = this.getDirectionalPathNodeType(blockaccessIn, bx, by, bz);
-                    BlockPathTypes adjustedNodeType = unpackNodeType(packedAdjusted);
+                    PathType adjustedNodeType = unpackNodeType(packedAdjusted);
 
-                    adjustedNodeType = this.evaluateBlockPathType(blockaccessIn, canOpenDoorsIn, canEnterDoorsIn, pos, adjustedNodeType);
+                    if (adjustedNodeType == PathType.DOOR_WOOD_CLOSED && this.canOpenDoors() && canPassDoors()) {
+                        adjustedNodeType = PathType.WALKABLE_DOOR;
+                    }
 
+                    if (adjustedNodeType == PathType.DOOR_OPEN && !canPassDoors()) {
+                        adjustedNodeType = PathType.BLOCKED;
+                    }
+
+                    if (adjustedNodeType == PathType.RAIL && this.getPathType(blockaccessIn, pos.getX(), pos.getY(), pos.getZ()) != PathType.RAIL && this.getPathType(blockaccessIn, pos.getX(), pos.getY() - 1, pos.getZ()) != PathType.RAIL) {
+                        adjustedNodeType = PathType.UNPASSABLE_RAIL;
+                    }
                     if (ox == 0 && oy == 0 && oz == 0) {
                         packed = packNodeType(adjustedNodeType, packedAdjusted);
                     }
@@ -993,11 +934,81 @@ public class AdvancedWalkNodeProcessor extends WalkNodeEvaluator {
     }
 
     @Override
-    public BlockPathTypes getBlockPathType(BlockGetter blockaccessIn, int x, int y, int z) {
+    @NotNull
+    public PathType getPathType(PathfindingContext blockaccessIn, int x, int y, int z) {
         return unpackNodeType(this.getDirectionalPathNodeType(blockaccessIn, x, y, z));
     }
 
-    protected long getDirectionalPathNodeType(BlockGetter blockaccessIn, int x, int y, int z) {
+    protected long getDirectionalPathNodeType(PathfindingContext blockaccessIn, int x, int y, int z) {
         return getDirectionalPathNodeType(this.rawPathNodeTypeCache, blockaccessIn, x, y, z, this.pathingSizeOffsetX, this.pathingSizeOffsetY, this.pathingSizeOffsetZ, this.pathableFacingsArray);
+    }
+
+    protected static PathType getRawPathNodeTypeCached(Long2ObjectMap<PathType> cache, PathfindingContext blockaccessIn, BlockPos.MutableBlockPos pos) {
+        return cache.computeIfAbsent(BlockPos.asLong(pos.getX(), pos.getY(), pos.getZ()), (key) -> {
+            return getPathTypeFromState(blockaccessIn.level(), pos); //getPathNodeTypeRaw
+        });
+    }
+
+    protected static long getDirectionalPathNodeType(Long2ObjectMap<PathType> rawPathNodeTypeCache, PathfindingContext blockaccessIn, int x, int y, int z, int pathingSizeOffsetX, int pathingSizeOffsetY, int pathingSizeOffsetZ, Direction[] pathableFacings) {
+        long packed = 0L;
+
+        BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
+
+        PathType nodeType = getRawPathNodeTypeCached(rawPathNodeTypeCache, blockaccessIn, pos.set(x, y, z));
+        boolean isWalkable = false;
+
+        if(nodeType == PathType.OPEN && y >= blockaccessIn.level().getMinY() + 1) {
+            for(int i = 0; i < pathableFacings.length; i++) {
+                Direction pathableFacing = pathableFacings[i];
+
+                int checkHeight = pathableFacing.getAxis() != Axis.Y ? Math.min(4, pathingSizeOffsetY - 1) : 0;
+
+                int cx = x + pathableFacing.getStepX() * pathingSizeOffsetX;
+                int cy = y + (pathableFacing == Direction.DOWN ? -1 : pathableFacing == Direction.UP ? pathingSizeOffsetY : 0);
+                int cz = z + pathableFacing.getStepZ() * pathingSizeOffsetZ;
+
+                for(int yo = 0; yo <= checkHeight; yo++) {
+                    pos.set(cx, cy + yo, cz);
+
+                    PathType offsetNodeType = getRawPathNodeTypeCached(rawPathNodeTypeCache, blockaccessIn, pos);
+                    nodeType = offsetNodeType != PathType.WALKABLE && offsetNodeType != PathType.OPEN && offsetNodeType != PathType.WATER && offsetNodeType != PathType.LAVA ? PathType.WALKABLE : PathType.OPEN;
+
+                    if(offsetNodeType == PathType.DAMAGE_FIRE) {
+                        nodeType = PathType.DAMAGE_FIRE;
+                    }
+
+                    if(offsetNodeType == PathType.DANGER_OTHER) {
+                        nodeType = PathType.DANGER_OTHER;
+                    }
+
+                    if(offsetNodeType == PathType.DAMAGE_OTHER) {
+                        nodeType = PathType.DAMAGE_OTHER;
+                    }
+
+                    if(offsetNodeType == PathType.STICKY_HONEY) {
+                        nodeType = PathType.STICKY_HONEY;
+                    }
+
+                    if(nodeType == PathType.WALKABLE) {
+                        if(isColliderNodeType(offsetNodeType)) {
+                            packed = packDirection(pathableFacing, packed);
+                        }
+                        isWalkable = true;
+                    }
+                }
+            }
+        }
+
+        if(isWalkable) {
+            nodeType = checkNeighbourBlocks(blockaccessIn, x, y, z, PathType.WALKABLE); //checkNeighborBlocks
+        }
+
+        return packNodeType(nodeType, packed);
+    }
+
+    protected static boolean isColliderNodeType(PathType type) {
+        return type == PathType.BLOCKED || type == PathType.TRAPDOOR || type == PathType.FENCE ||
+                type == PathType.DOOR_WOOD_CLOSED || type == PathType.DOOR_IRON_CLOSED || type == PathType.LEAVES ||
+                type == PathType.STICKY_HONEY || type == PathType.COCOA;
     }
 }

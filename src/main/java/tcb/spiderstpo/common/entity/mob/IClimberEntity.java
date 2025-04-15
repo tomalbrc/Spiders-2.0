@@ -11,54 +11,52 @@ import tcb.spiderstpo.common.entity.movement.IAdvancedPathFindingEntity;
 import java.util.List;
 
 public interface IClimberEntity extends IAdvancedPathFindingEntity {
-    public float getAttachmentOffset(Direction.Axis axis, float partialTicks);
+    float getAttachmentOffset(Direction.Axis axis, float partialTicks);
 
-    public float getVerticalOffset(float partialTicks);
+    float getVerticalOffset(float partialTicks);
 
-    public Orientation getOrientation();
+    Orientation getOrientation();
 
-    public Orientation calculateOrientation(float partialTicks);
-
-    @Nullable
-    public Orientation getRenderOrientation();
-
-    public void setRenderOrientation(Orientation orientation);
-
-    public float getMovementSpeed();
-
-    public Pair<Direction, Vec3> getGroundDirection();
-
-    public boolean shouldTrackPathingTargets();
+    Orientation calculateOrientation(float partialTicks);
 
     @Nullable
-    public Vec3 getTrackedMovementTarget();
+    Orientation getRenderOrientation();
+
+    void setRenderOrientation(Orientation orientation);
+
+    float getMovementSpeed();
+
+    Pair<Direction, Vec3> getGroundDirection();
+
+    boolean shouldTrackPathingTargets();
 
     @Nullable
-    public List<PathingTarget> getTrackedPathingTargets();
+    Vec3 getTrackedMovementTarget();
 
-    public boolean canClimbOnBlock(BlockState state, BlockPos pos);
+    @Nullable
+    List<PathingTarget> getTrackedPathingTargets();
 
-    public boolean canAttachToSide(Direction side);
+    boolean canClimbOnBlock(BlockState state, BlockPos pos);
 
-    public float getBlockSlipperiness(BlockPos pos);
+    float getBlockSlipperiness(BlockPos pos);
 
-    public boolean canClimberTriggerWalking();
+    boolean canClimberTriggerWalking();
 
-    public boolean canClimbInWater();
+    boolean canClimbInWater();
 
-    public void setCanClimbInWater(boolean value);
+    void setCanClimbInWater(boolean value);
 
-    public boolean canClimbInLava();
+    boolean canClimbInLava();
 
-    public void setCanClimbInLava(boolean value);
+    void setCanClimbInLava(boolean value);
 
-    public float getCollisionsInclusionRange();
+    float getCollisionsInclusionRange();
 
-    public void setCollisionsInclusionRange(float range);
+    void setCollisionsInclusionRange(float range);
 
-    public float getCollisionsSmoothingRange();
+    float getCollisionsSmoothingRange();
 
-    public void setCollisionsSmoothingRange(float range);
+    void setCollisionsSmoothingRange(float range);
 
-    public void setJumpDirection(@Nullable Vec3 dir);
+    void setJumpDirection(@Nullable Vec3 dir);
 }

@@ -1,5 +1,7 @@
 package tcb.spiderstpo.mixins;
 
+import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
+import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.entity.Entity;
@@ -12,7 +14,6 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import tcb.spiderstpo.common.CommonEventHandlers;
@@ -25,8 +26,7 @@ import java.util.Optional;
 @Mixin(Entity.class)
 public abstract class EntityMixin implements IEntityMovementHook, IEntityReadWriteHook, IEntityRegisterDataHook {
 
-    @Shadow
-    private EntityDimensions dimensions;
+    @Shadow private EntityDimensions dimensions;
 
     @Inject(method = "<init>", at = @At("RETURN"))
     private void setDimensions(EntityType entityType, Level level, CallbackInfo ci) {
@@ -39,10 +39,9 @@ public abstract class EntityMixin implements IEntityMovementHook, IEntityReadWri
         final Optional<EntityDimensions> entityDimensions = CommonEventHandlers.onEntitySize((Entity) (Object) this);
         entityDimensions.ifPresent(value -> this.dimensions = value);
     }
-
     @Inject(method = "move", at = @At("HEAD"), cancellable = true)
     private void onMovePre(MoverType type, Vec3 pos, CallbackInfo ci) {
-        if (this.onMove(type, pos, true)) {
+        if(this.onMove(type, pos, true)) {
             ci.cancel();
         }
     }
@@ -60,7 +59,7 @@ public abstract class EntityMixin implements IEntityMovementHook, IEntityReadWri
     @Inject(method = "getOnPos", at = @At("RETURN"), cancellable = true)
     private void onGetOnPosition(CallbackInfoReturnable<BlockPos> ci) {
         BlockPos adjusted = this.getAdjustedOnPosition(ci.getReturnValue());
-        if (adjusted != null) {
+        if(adjusted != null) {
             ci.setReturnValue(adjusted);
         }
     }
@@ -70,13 +69,13 @@ public abstract class EntityMixin implements IEntityMovementHook, IEntityReadWri
         return null;
     }
 
-    @Inject(method = "getMovementEmission", at = @At("RETURN"), cancellable = true)
-    private void onCanTriggerWalking(CallbackInfoReturnable<Entity.MovementEmission> ci) {
-        ci.setReturnValue(this.getAdjustedCanTriggerWalking(ci.getReturnValue()));
+    @WrapOperation(method = "move", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/Entity$MovementEmission;emitsAnything()Z"))
+    public boolean bop(Entity.MovementEmission instance, Operation<Boolean> original){
+        return this.getAdjustedCanTriggerWalking(instance.emitsAnything());
     }
 
     @Override
-    public Entity.MovementEmission getAdjustedCanTriggerWalking(Entity.MovementEmission canTriggerWalking) {
+    public boolean getAdjustedCanTriggerWalking(boolean canTriggerWalking) {
         return canTriggerWalking;
     }
 
@@ -90,8 +89,7 @@ public abstract class EntityMixin implements IEntityMovementHook, IEntityReadWri
     }
 
     @Override
-    public void onRead(CompoundTag nbt) {
-    }
+    public void onRead(CompoundTag nbt) { }
 
     @Inject(method = "saveWithoutId", at = @At(
             value = "INVOKE",
@@ -103,29 +101,5 @@ public abstract class EntityMixin implements IEntityMovementHook, IEntityReadWri
     }
 
     @Override
-    public void onWrite(CompoundTag nbt) {
-    }
-
-    @Shadow(prefix = "shadow$")
-    private void shadow$defineSynchedData() {
-    }
-
-    @Shadow
-    public abstract boolean isFree(double d, double e, double f);
-
-    @Redirect(method = "<init>*", at = @At(
-            value = "INVOKE",
-            target = "Lnet/minecraft/world/entity/Entity;defineSynchedData()V"
-    ))
-    private void onRegisterData(Entity _this) {
-        this.shadow$defineSynchedData();
-
-        if (_this == (Object) this) {
-            this.onRegisterData();
-        }
-    }
-
-    @Override
-    public void onRegisterData() {
-    }
+    public void onWrite(CompoundTag nbt) { }
 }

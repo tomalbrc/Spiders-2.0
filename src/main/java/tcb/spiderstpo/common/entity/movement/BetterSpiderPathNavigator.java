@@ -5,10 +5,11 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.pathfinder.Path;
+import org.jetbrains.annotations.NotNull;
 import tcb.spiderstpo.common.entity.mob.IClimberEntity;
 
 public class BetterSpiderPathNavigator<T extends Mob & IClimberEntity> extends AdvancedClimberPathNavigator<T> {
-    private boolean useVanillaBehaviour;
+    private final boolean useVanillaBehaviour;
     private BlockPos targetPosition;
 
     public BetterSpiderPathNavigator(T entity, Level worldIn, boolean useVanillaBehaviour) {
@@ -17,13 +18,13 @@ public class BetterSpiderPathNavigator<T extends Mob & IClimberEntity> extends A
     }
 
     @Override
-    public Path createPath(BlockPos pos, int p_179680_2_) {
+    public @NotNull Path createPath(BlockPos pos, int p_179680_2_) {
         this.targetPosition = pos;
         return super.createPath(pos, p_179680_2_);
     }
 
     @Override
-    public Path createPath(Entity entityIn, int p_75494_2_) {
+    public @NotNull Path createPath(Entity entityIn, int p_75494_2_) {
         this.targetPosition = entityIn.blockPosition();
         return super.createPath(entityIn, p_75494_2_);
     }
@@ -47,7 +48,7 @@ public class BetterSpiderPathNavigator<T extends Mob & IClimberEntity> extends A
         } else {
             if (this.targetPosition != null && this.useVanillaBehaviour) {
                 // FORGE: Fix MC-94054
-                if (!this.targetPosition.closerThan(this.mob.blockPosition(), Math.max((double) this.mob.getBbWidth(), 1.0D)) && (!(this.mob.getY() > (double) this.targetPosition.getY()) || !(new BlockPos(this.targetPosition.getX(), this.mob.getY(), (double) this.targetPosition.getZ())).closerThan(this.mob.blockPosition(), Math.max(this.mob.getBbWidth(), 1.0D)))) {
+                if (!this.targetPosition.closerThan(this.mob.blockPosition(), Math.max(this.mob.getBbWidth(), 1.0D)) && (!(this.mob.getY() > (double) this.targetPosition.getY()) || !(BlockPos.containing(this.targetPosition.getX(), this.mob.getY(), this.targetPosition.getZ())).closerThan(this.mob.blockPosition(), Math.max(this.mob.getBbWidth(), 1.0D)))) {
                     this.mob.getMoveControl().setWantedPosition(this.targetPosition.getX(), this.targetPosition.getY(), this.targetPosition.getZ(), this.speedModifier);
                 } else {
                     this.targetPosition = null;

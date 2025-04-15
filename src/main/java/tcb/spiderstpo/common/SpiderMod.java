@@ -6,6 +6,8 @@ import net.minecraft.world.level.block.Block;
 
 public class SpiderMod implements ModInitializer {
 
+    public static final String MODID = "spiderstpo";
+
     @Override
     public void onInitialize() {
         //Bind tag
