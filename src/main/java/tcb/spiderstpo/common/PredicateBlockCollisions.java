@@ -33,7 +33,7 @@ public class PredicateBlockCollisions extends BlockCollisions {
 
     @Override
     protected VoxelShape computeNext() {
-        while(true) {
+        while (true) {
             final Cursor3D cursor = ((BlockCollisionsAccess) this).getCursor();
             if (cursor.advance()) {
                 int i = cursor.nextX();
@@ -58,14 +58,14 @@ public class PredicateBlockCollisions extends BlockCollisions {
 
                 VoxelShape voxelshape = blockstate.getCollisionShape(((BlockCollisionsAccess) this).getCollisionGetter(), pos, ((BlockCollisionsAccess) this).getContext());
                 if (voxelshape == Shapes.block()) {
-                    if (!((BlockCollisionsAccess) this).getBox().intersects((double)i, (double)j, (double)k, (double)i + 1.0D, (double)j + 1.0D, (double)k + 1.0D)) {
+                    if (!((BlockCollisionsAccess) this).getBox().intersects((double) i, (double) j, (double) k, (double) i + 1.0D, (double) j + 1.0D, (double) k + 1.0D)) {
                         continue;
                     }
 
-                    return voxelshape.move((double)i, (double)j, (double)k);
+                    return voxelshape.move((double) i, (double) j, (double) k);
                 }
 
-                VoxelShape voxelshape1 = voxelshape.move((double)i, (double)j, (double)k);
+                VoxelShape voxelshape1 = voxelshape.move((double) i, (double) j, (double) k);
                 if (!Shapes.joinIsNotEmpty(voxelshape1, ((BlockCollisionsAccess) this).getEntityShape(), BooleanOp.AND)) {
                     continue;
                 }

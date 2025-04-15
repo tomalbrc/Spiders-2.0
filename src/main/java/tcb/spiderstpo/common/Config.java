@@ -14,7 +14,7 @@ import java.nio.file.Path;
 public class Config {
 
     public static final Config DEFAULT = new Config(true, false);
-
+    private static Config INSTANCE = null;
     private final boolean preventClimbingInRain;
     private final boolean pathFinderDebugPreview;
 
@@ -22,8 +22,6 @@ public class Config {
         this.preventClimbingInRain = preventClimbingInRain;
         this.pathFinderDebugPreview = pathFinderDebugPreview;
     }
-
-    private static Config INSTANCE = null;
 
     public static Config getConfig() {
         return getConfig(false);

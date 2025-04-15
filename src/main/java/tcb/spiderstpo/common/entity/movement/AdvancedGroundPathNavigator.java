@@ -1,192 +1,190 @@
 package tcb.spiderstpo.common.entity.movement;
 
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.util.Mth;
+import net.minecraft.world.entity.Mob;
+import net.minecraft.world.entity.ai.navigation.GroundPathNavigation;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.pathfinder.BlockPathTypes;
+import net.minecraft.world.level.pathfinder.Path;
+import net.minecraft.world.level.pathfinder.PathComputationType;
+import net.minecraft.world.level.pathfinder.PathFinder;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
+import net.minecraft.world.phys.shapes.CollisionContext;
+import net.minecraft.world.phys.shapes.VoxelShape;
+import org.jetbrains.annotations.Nullable;
+import tcb.spiderstpo.common.entity.mob.IClimberEntity;
+
 import java.util.HashSet;
 import java.util.Set;
 
-import javax.annotation.Nullable;
-
-import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.entity.Mob;
-import net.minecraft.world.entity.ai.navigation.GroundPathNavigation;
-import net.minecraft.world.level.pathfinder.Path;
-import net.minecraft.world.level.pathfinder.PathFinder;
-import net.minecraft.world.level.pathfinder.BlockPathTypes;
-import net.minecraft.world.level.pathfinder.PathComputationType;
-import net.minecraft.core.Direction;
-import net.minecraft.world.phys.AABB;
-import net.minecraft.core.BlockPos;
-import net.minecraft.util.Mth;
-import net.minecraft.world.phys.shapes.CollisionContext;
-import net.minecraft.world.phys.shapes.VoxelShape;
-import net.minecraft.world.phys.Vec3;
-import net.minecraft.world.level.Level;
-import tcb.spiderstpo.common.entity.mob.IClimberEntity;
-
 public class AdvancedGroundPathNavigator<T extends Mob & IClimberEntity> extends GroundPathNavigation {
-	protected AdvancedPathFinder pathFinder;
-	protected long lastTimeUpdated;
-	protected BlockPos targetPos;
+    protected final T advancedPathFindingEntity;
+    protected final boolean checkObstructions;
+    protected AdvancedPathFinder pathFinder;
+    protected long lastTimeUpdated;
+    protected BlockPos targetPos;
+    protected int stuckCheckTicks = 0;
 
-	protected final T advancedPathFindingEntity;
-	protected final boolean checkObstructions;
+    protected int checkpointRange;
 
-	protected int stuckCheckTicks = 0;
+    public AdvancedGroundPathNavigator(T entity, Level worldIn) {
+        this(entity, worldIn, true);
+    }
 
-	protected int checkpointRange;
+    public AdvancedGroundPathNavigator(T entity, Level worldIn, boolean checkObstructions) {
+        super(entity, worldIn);
+        this.advancedPathFindingEntity = entity;
+        this.checkObstructions = checkObstructions;
 
-	public AdvancedGroundPathNavigator(T entity, Level worldIn) {
-		this(entity, worldIn, true);
-	}
+        if (this.nodeEvaluator instanceof AdvancedWalkNodeProcessor) {
+            AdvancedWalkNodeProcessor processor = (AdvancedWalkNodeProcessor) this.nodeEvaluator;
+            processor.setCheckObstructions(checkObstructions);
+        }
+    }
 
-	public AdvancedGroundPathNavigator(T entity, Level worldIn, boolean checkObstructions) {
-		super(entity, worldIn);
-		this.advancedPathFindingEntity = entity;
-		this.checkObstructions = checkObstructions;
+    public AdvancedPathFinder getAssignedPathFinder() {
+        return this.pathFinder;
+    }
 
-		if(this.nodeEvaluator instanceof AdvancedWalkNodeProcessor) {
-			AdvancedWalkNodeProcessor processor = (AdvancedWalkNodeProcessor) this.nodeEvaluator;
-			processor.setCheckObstructions(checkObstructions);
-		}
-	}
+    @Override
+    protected final PathFinder createPathFinder(int maxExpansions) {
+        this.pathFinder = this.getPathFinder(maxExpansions);
+        this.nodeEvaluator = this.pathFinder.getNodeProcessor();
+        return this.pathFinder;
+    }
 
-	public AdvancedPathFinder getAssignedPathFinder() {
-		return this.pathFinder;
-	}
+    protected AdvancedPathFinder getPathFinder(int maxExpansions) {
+        AdvancedWalkNodeProcessor nodeProcessor = new AdvancedWalkNodeProcessor();
+        nodeProcessor.setCanPassDoors(true);
+        return new AdvancedPathFinder(nodeProcessor, maxExpansions);
+    }
 
-	@Override
-	protected final PathFinder createPathFinder(int maxExpansions) {
-		this.pathFinder = this.getPathFinder(maxExpansions);
-		this.nodeEvaluator = this.pathFinder.getNodeProcessor();
-		return this.pathFinder;
-	}
+    @Nullable
+    @Override
+    protected Path createPath(Set<BlockPos> waypoints, int padding, boolean startAbove, int checkpointRange) {
+        //Offset waypoints according to entity's size so that the lower AABB corner is at the offset waypoint and center is at the original waypoint
+        Set<BlockPos> adjustedWaypoints = new HashSet<>();
+        for (BlockPos pos : waypoints) {
+            adjustedWaypoints.add(pos.offset(-Mth.ceil(this.mob.getBbWidth()) + 1, -Mth.ceil(this.mob.getBbHeight()) + 1, -Mth.ceil(this.mob.getBbWidth()) + 1));
+        }
 
-	protected AdvancedPathFinder getPathFinder(int maxExpansions) {
-		AdvancedWalkNodeProcessor nodeProcessor = new AdvancedWalkNodeProcessor();
-		nodeProcessor.setCanPassDoors(true);
-		return new AdvancedPathFinder(nodeProcessor, maxExpansions);
-	}
+        Path path = super.createPath(adjustedWaypoints, padding, startAbove, checkpointRange);
 
-	@Nullable
-	@Override
-	protected Path createPath(Set<BlockPos> waypoints, int padding, boolean startAbove, int checkpointRange) {
-		//Offset waypoints according to entity's size so that the lower AABB corner is at the offset waypoint and center is at the original waypoint
-		Set<BlockPos> adjustedWaypoints = new HashSet<>();
-		for(BlockPos pos : waypoints) {
-			adjustedWaypoints.add(pos.offset(-Mth.ceil(this.mob.getBbWidth()) + 1, -Mth.ceil(this.mob.getBbHeight()) + 1, -Mth.ceil(this.mob.getBbWidth()) + 1));
-		}
+        if (path != null && path.getTarget() != null) {
+            this.checkpointRange = checkpointRange;
+        }
 
-		Path path = super.createPath(adjustedWaypoints, padding, startAbove, checkpointRange);
+        return path;
+    }
 
-		if(path != null && path.getTarget() != null) {
-			this.checkpointRange = checkpointRange;
-		}
+    @Override
+    public void recomputePath() {
+        if (this.level.getGameTime() - this.lastTimeUpdated > 20L) {
+            if (this.targetPos != null) {
+                this.path = null;
+                this.path = this.createPath(this.targetPos, this.checkpointRange);
+                this.lastTimeUpdated = this.level.getGameTime();
+                this.hasDelayedRecomputation = false;
+            }
+        } else {
+            this.hasDelayedRecomputation = true;
+        }
+    }
 
-		return path;
-	}
+    @Override
+    protected void doStuckDetection(Vec3 entityPos) {
+        super.doStuckDetection(entityPos);
 
-	@Override
-	public void recomputePath() {
-		if(this.level.getGameTime() - this.lastTimeUpdated > 20L) {
-			if(this.targetPos != null) {
-				this.path = null;
-				this.path = this.createPath(this.targetPos, this.checkpointRange);
-				this.lastTimeUpdated = this.level.getGameTime();
-				this.hasDelayedRecomputation = false;
-			}
-		} else {
-			this.hasDelayedRecomputation = true;
-		}
-	}
+        if (this.checkObstructions && this.path != null && !this.path.isDone()) {
+            Vec3 target = this.path.getEntityPosAtNode(this.advancedPathFindingEntity, Math.min(this.path.getNodeCount() - 1, this.path.getNextNodeIndex() + 0));
+            Vec3 diff = target.subtract(entityPos);
 
-	@Override
-	protected void doStuckDetection(Vec3 entityPos) {
-		super.doStuckDetection(entityPos);
+            int axis = 0;
+            double maxDiff = 0;
+            for (int i = 0; i < 3; i++) {
+                double d;
 
-		if(this.checkObstructions && this.path != null && !this.path.isDone()) {
-			Vec3 target = this.path.getEntityPosAtNode(this.advancedPathFindingEntity, Math.min(this.path.getNodeCount() - 1, this.path.getNextNodeIndex() + 0));
-			Vec3 diff = target.subtract(entityPos);
+                switch (i) {
+                    default:
+                    case 0:
+                        d = Math.abs(diff.x);
+                        break;
+                    case 1:
+                        d = Math.abs(diff.y);
+                        break;
+                    case 2:
+                        d = Math.abs(diff.z);
+                        break;
+                }
 
-			int axis = 0;
-			double maxDiff = 0;
-			for(int i = 0; i < 3; i++) {
-				double d;
+                if (d > maxDiff) {
+                    axis = i;
+                    maxDiff = d;
+                }
+            }
 
-				switch(i) {
-				default:
-				case 0:
-					d = Math.abs(diff.x);
-					break;
-				case 1:
-					d = Math.abs(diff.y);
-					break;
-				case 2:
-					d = Math.abs(diff.z);
-					break;
-				}
+            int height = Mth.floor(this.advancedPathFindingEntity.getBbHeight() + 1.0F);
 
-				if(d > maxDiff) {
-					axis = i;
-					maxDiff = d;
-				}
-			}
+            int ceilHalfWidth = Mth.ceil(this.advancedPathFindingEntity.getBbWidth() / 2.0f + 0.05F);
 
-			int height = Mth.floor(this.advancedPathFindingEntity.getBbHeight() + 1.0F);
+            Vec3 checkPos;
+            switch (axis) {
+                default:
+                case 0:
+                    checkPos = new Vec3(entityPos.x + Math.signum(diff.x) * ceilHalfWidth, entityPos.y, target.z);
+                    break;
+                case 1:
+                    checkPos = new Vec3(entityPos.x, entityPos.y + (diff.y > 0 ? (height + 1) : -1), target.z);
+                    break;
+                case 2:
+                    checkPos = new Vec3(target.x, entityPos.y, entityPos.z + Math.signum(diff.z) * ceilHalfWidth);
+                    break;
+            }
 
-			int ceilHalfWidth = Mth.ceil(this.advancedPathFindingEntity.getBbWidth() / 2.0f + 0.05F);
+            Vec3 facingDiff = checkPos.subtract(entityPos.add(0, axis == 1 ? this.mob.getBbHeight() / 2 : 0, 0));
+            Direction facing = Direction.getNearest((float) facingDiff.x, (float) facingDiff.y, (float) facingDiff.z);
 
-			Vec3 checkPos;
-			switch(axis) {
-			default:
-			case 0:
-				checkPos = new Vec3(entityPos.x + Math.signum(diff.x) * ceilHalfWidth, entityPos.y, target.z);
-				break;
-			case 1:
-				checkPos = new Vec3(entityPos.x, entityPos.y + (diff.y > 0 ? (height + 1) : -1), target.z);
-				break;
-			case 2:
-				checkPos = new Vec3(target.x, entityPos.y, entityPos.z + Math.signum(diff.z) * ceilHalfWidth);
-				break;
-			}
+            boolean blocked = false;
 
-			Vec3 facingDiff = checkPos.subtract(entityPos.add(0, axis == 1 ? this.mob.getBbHeight() / 2 : 0, 0));
-			Direction facing = Direction.getNearest((float)facingDiff.x, (float)facingDiff.y, (float)facingDiff.z);
+            AABB checkBox = this.advancedPathFindingEntity.getBoundingBox().expandTowards(Math.signum(diff.x) * 0.2D, Math.signum(diff.y) * 0.2D, Math.signum(diff.z) * 0.2D);
 
-			boolean blocked = false;
+            loop:
+            for (int yo = 0; yo < height; yo++) {
+                for (int xzo = -ceilHalfWidth; xzo <= ceilHalfWidth; xzo++) {
+                    BlockPos pos = new BlockPos(checkPos.x + (axis != 0 ? xzo : 0), checkPos.y + (axis != 1 ? yo : 0), checkPos.z + (axis != 2 ? xzo : 0));
 
-			AABB checkBox = this.advancedPathFindingEntity.getBoundingBox().expandTowards(Math.signum(diff.x) * 0.2D, Math.signum(diff.y) * 0.2D, Math.signum(diff.z) * 0.2D);
+                    BlockState state = this.advancedPathFindingEntity.level.getBlockState(pos);
 
-			loop: for(int yo = 0; yo < height; yo++) {
-				for(int xzo = -ceilHalfWidth; xzo <= ceilHalfWidth; xzo++) {
-					BlockPos pos = new BlockPos(checkPos.x + (axis != 0 ? xzo : 0), checkPos.y + (axis != 1 ? yo : 0), checkPos.z + (axis != 2 ? xzo : 0));
+                    BlockPathTypes nodeType = state.isPathfindable(this.advancedPathFindingEntity.level, pos, PathComputationType.LAND) ? BlockPathTypes.OPEN : BlockPathTypes.BLOCKED;
 
-					BlockState state = this.advancedPathFindingEntity.level.getBlockState(pos);
+                    if (nodeType == BlockPathTypes.BLOCKED) {
+                        VoxelShape collisionShape = state.getShape(this.advancedPathFindingEntity.level, pos, CollisionContext.of(this.advancedPathFindingEntity)).move(pos.getX(), pos.getY(), pos.getZ());
 
-					BlockPathTypes nodeType = state.isPathfindable(this.advancedPathFindingEntity.level, pos, PathComputationType.LAND) ? BlockPathTypes.OPEN : BlockPathTypes.BLOCKED;
+                        //TODO Use ILineConsumer
+                        if (collisionShape != null && collisionShape.toAabbs().stream().anyMatch(aabb -> aabb.intersects(checkBox))) {
+                            blocked = true;
+                            break loop;
+                        }
+                    }
+                }
+            }
 
-					if(nodeType == BlockPathTypes.BLOCKED) {
-						VoxelShape collisionShape = state.getShape(this.advancedPathFindingEntity.level, pos, CollisionContext.of(this.advancedPathFindingEntity)).move(pos.getX(), pos.getY(), pos.getZ());
+            if (blocked) {
+                this.stuckCheckTicks++;
 
-						//TODO Use ILineConsumer
-						if(collisionShape != null && collisionShape.toAabbs().stream().anyMatch(aabb -> aabb.intersects(checkBox))) {
-							blocked = true;
-							break loop;
-						}
-					}
-				}
-			}
-
-			if(blocked) {
-				this.stuckCheckTicks++;
-
-				if(this.stuckCheckTicks > this.advancedPathFindingEntity.getMaxStuckCheckTicks()) {
-					this.advancedPathFindingEntity.onPathingObstructed(facing);
-					this.stuckCheckTicks = 0;
-				}
-			} else {
-				this.stuckCheckTicks = Math.max(this.stuckCheckTicks - 2, 0);
-			}
-		} else {
-			this.stuckCheckTicks = Math.max(this.stuckCheckTicks - 4, 0);
-		}
-	}
+                if (this.stuckCheckTicks > this.advancedPathFindingEntity.getMaxStuckCheckTicks()) {
+                    this.advancedPathFindingEntity.onPathingObstructed(facing);
+                    this.stuckCheckTicks = 0;
+                }
+            } else {
+                this.stuckCheckTicks = Math.max(this.stuckCheckTicks - 2, 0);
+            }
+        } else {
+            this.stuckCheckTicks = Math.max(this.stuckCheckTicks - 4, 0);
+        }
+    }
 }

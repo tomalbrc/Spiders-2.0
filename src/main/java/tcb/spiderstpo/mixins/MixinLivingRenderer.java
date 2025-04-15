@@ -14,7 +14,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import tcb.spiderstpo.client.ClientEventHandlers;
 
 @Mixin(LivingEntityRenderer.class)
-public abstract class MixinLivingRenderer <T extends LivingEntity, M extends EntityModel<T>> extends EntityRenderer<T> {
+public abstract class MixinLivingRenderer<T extends LivingEntity, M extends EntityModel<T>> extends EntityRenderer<T> {
 
     protected MixinLivingRenderer(EntityRendererProvider.Context context) {
         super(context);

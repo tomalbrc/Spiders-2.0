@@ -37,105 +37,105 @@ import java.util.function.Predicate;
 @Mixin(value = Spider.class, priority = 1001)
 public abstract class BetterSpiderEntityMixin extends Monster implements IClimberEntity, IMobEntityRegisterGoalsHook, IMobEntityNavigatorHook {
 
-	private static final UUID FOLLOW_RANGE_INCREASE_ID = UUID.fromString("9e815957-3a8e-4b65-afbc-eba39d2a06b4");
-	private static final AttributeModifier FOLLOW_RANGE_INCREASE = new AttributeModifier(FOLLOW_RANGE_INCREASE_ID, "Spiders 2.0 follow range increase", 8.0D, AttributeModifier.Operation.ADDITION);
+    private static final UUID FOLLOW_RANGE_INCREASE_ID = UUID.fromString("9e815957-3a8e-4b65-afbc-eba39d2a06b4");
+    private static final AttributeModifier FOLLOW_RANGE_INCREASE = new AttributeModifier(FOLLOW_RANGE_INCREASE_ID, "Spiders 2.0 follow range increase", 8.0D, AttributeModifier.Operation.ADDITION);
 
-	private boolean pathFinderDebugPreview;
+    private boolean pathFinderDebugPreview;
 
-	private BetterSpiderEntityMixin(EntityType<? extends Monster> type, Level worldIn) {
-		super(type, worldIn);
-	}
+    private BetterSpiderEntityMixin(EntityType<? extends Monster> type, Level worldIn) {
+        super(type, worldIn);
+    }
 
-	@Inject(method = "<init>*", at = @At("RETURN"))
-	private void onConstructed(CallbackInfo ci) {
-		this.getAttribute(Attributes.FOLLOW_RANGE).addPermanentModifier(FOLLOW_RANGE_INCREASE);
-	}
+    @Inject(method = "<init>*", at = @At("RETURN"))
+    private void onConstructed(CallbackInfo ci) {
+        this.getAttribute(Attributes.FOLLOW_RANGE).addPermanentModifier(FOLLOW_RANGE_INCREASE);
+    }
 
-	@Override
-	public PathNavigation onCreateNavigator(Level world) {
-		BetterSpiderPathNavigator<BetterSpiderEntityMixin> navigate = new BetterSpiderPathNavigator<>(this, world, false);
-		navigate.setCanFloat(true);
-		return navigate;
-	}
+    @Override
+    public PathNavigation onCreateNavigator(Level world) {
+        BetterSpiderPathNavigator<BetterSpiderEntityMixin> navigate = new BetterSpiderPathNavigator<>(this, world, false);
+        navigate.setCanFloat(true);
+        return navigate;
+    }
 
-	@Inject(method = "defineSynchedData()V", at = @At("HEAD"))
-	private void onRegisterData(CallbackInfo ci) {
-		this.pathFinderDebugPreview = Config.getConfig().isPathFinderDebugPreview();
-	}
+    @Inject(method = "defineSynchedData()V", at = @At("HEAD"))
+    private void onRegisterData(CallbackInfo ci) {
+        this.pathFinderDebugPreview = Config.getConfig().isPathFinderDebugPreview();
+    }
 
-	@Redirect(method = "registerGoals()V", at = @At(
-			value = "INVOKE",
-			target = "Lnet/minecraft/world/entity/ai/goal/GoalSelector;addGoal(ILnet/minecraft/world/entity/ai/goal/Goal;)V"
-			))
-	private void onAddGoal(GoalSelector selector, int priority, Goal task) {
-		if(task instanceof LeapAtTargetGoal) {
-			selector.addGoal(3, new BetterLeapAtTargetGoal<>(this, 0.4f));
-		} else if(task instanceof TargetGoal) {
-			selector.addGoal(2, ((TargetGoal) task).setUnseenMemoryTicks(200));
-		} else {
-			selector.addGoal(priority, task);
-		}
-	}
+    @Redirect(method = "registerGoals()V", at = @At(
+            value = "INVOKE",
+            target = "Lnet/minecraft/world/entity/ai/goal/GoalSelector;addGoal(ILnet/minecraft/world/entity/ai/goal/Goal;)V"
+    ))
+    private void onAddGoal(GoalSelector selector, int priority, Goal task) {
+        if (task instanceof LeapAtTargetGoal) {
+            selector.addGoal(3, new BetterLeapAtTargetGoal<>(this, 0.4f));
+        } else if (task instanceof TargetGoal) {
+            selector.addGoal(2, ((TargetGoal) task).setUnseenMemoryTicks(200));
+        } else {
+            selector.addGoal(priority, task);
+        }
+    }
 
-	@Override
-	public boolean shouldTrackPathingTargets() {
-		return this.pathFinderDebugPreview;
-	}	
+    @Override
+    public boolean shouldTrackPathingTargets() {
+        return this.pathFinderDebugPreview;
+    }
 
-	@Override	
-	public boolean canClimbOnBlock(BlockState state, BlockPos pos) {
-		return !state.is(ModTags.NON_CLIMBABLE);
-	}
+    @Override
+    public boolean canClimbOnBlock(BlockState state, BlockPos pos) {
+        return !state.is(ModTags.NON_CLIMBABLE);
+    }
 
-	@Override
-	public boolean canAttachToSide(Direction side) {
-		if(!this.jumping && Config.getConfig().isPreventClimbingInRain() && side.getAxis() != Direction.Axis.Y && this.level.isRainingAt(new BlockPos(this.getX(), this.getY() + this.getBbHeight() * 0.5f,  this.getZ()))) {
-			return false;
-		}
-		return true;
-	}
+    @Override
+    public boolean canAttachToSide(Direction side) {
+        if (!this.jumping && Config.getConfig().isPreventClimbingInRain() && side.getAxis() != Direction.Axis.Y && this.level.isRainingAt(new BlockPos(this.getX(), this.getY() + this.getBbHeight() * 0.5f, this.getZ()))) {
+            return false;
+        }
+        return true;
+    }
 
-	@Override
-	public float getBlockSlipperiness(BlockPos pos) {
-		BlockState offsetState = this.level.getBlockState(pos);
+    @Override
+    public float getBlockSlipperiness(BlockPos pos) {
+        BlockState offsetState = this.level.getBlockState(pos);
 
-		float slipperiness = offsetState.getBlock().getFriction() * 0.91f;
+        float slipperiness = offsetState.getBlock().getFriction() * 0.91f;
 
-		if(offsetState.is(ModTags.NON_CLIMBABLE)) {
-			slipperiness = 1 - (1 - slipperiness) * 0.25f;
-		}
+        if (offsetState.is(ModTags.NON_CLIMBABLE)) {
+            slipperiness = 1 - (1 - slipperiness) * 0.25f;
+        }
 
-		return slipperiness;
-	}
+        return slipperiness;
+    }
 
-	@Override
-	public float getPathingMalus(BlockGetter cache, Mob entity, BlockPathTypes nodeType, BlockPos pos, Vec3i direction, Predicate<Direction> sides) {
-		if(direction.getY() != 0) {
-			if(Config.getConfig().isPreventClimbingInRain() && !sides.test(Direction.UP) && !sides.test(Direction.DOWN) && this.level.isRainingAt(pos)) {
-				return -1.0f;
-			}
+    @Override
+    public float getPathingMalus(BlockGetter cache, Mob entity, BlockPathTypes nodeType, BlockPos pos, Vec3i direction, Predicate<Direction> sides) {
+        if (direction.getY() != 0) {
+            if (Config.getConfig().isPreventClimbingInRain() && !sides.test(Direction.UP) && !sides.test(Direction.DOWN) && this.level.isRainingAt(pos)) {
+                return -1.0f;
+            }
 
-			boolean hasClimbableNeigbor = false;
+            boolean hasClimbableNeigbor = false;
 
-			BlockPos.MutableBlockPos offsetPos = new BlockPos.MutableBlockPos();
+            BlockPos.MutableBlockPos offsetPos = new BlockPos.MutableBlockPos();
 
-			for(Direction offset : Direction.values()) {
-				if(sides.test(offset)) {
-					offsetPos.set(pos.getX() + offset.getStepX(), pos.getY() + offset.getStepY(), pos.getZ() + offset.getStepZ());
+            for (Direction offset : Direction.values()) {
+                if (sides.test(offset)) {
+                    offsetPos.set(pos.getX() + offset.getStepX(), pos.getY() + offset.getStepY(), pos.getZ() + offset.getStepZ());
 
-					BlockState state = cache.getBlockState(offsetPos);
+                    BlockState state = cache.getBlockState(offsetPos);
 
-					if(this.canClimbOnBlock(state, offsetPos)) {
-						hasClimbableNeigbor = true;
-					}
-				}
-			}
+                    if (this.canClimbOnBlock(state, offsetPos)) {
+                        hasClimbableNeigbor = true;
+                    }
+                }
+            }
 
-			if(!hasClimbableNeigbor) {
-				return -1.0f;
-			}
-		}
+            if (!hasClimbableNeigbor) {
+                return -1.0f;
+            }
+        }
 
-		return entity.getPathfindingMalus(nodeType);
-	}
+        return entity.getPathfindingMalus(nodeType);
+    }
 }

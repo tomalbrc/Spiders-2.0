@@ -12,7 +12,6 @@
     "MixinLivingRenderer",
     "MobEntityMixin",
     "access.BlockCollisionsAccess",
-    "access.BlockTagsAccess",
     "access.ChunkMapAccess",
     "access.ServerEntityAccess",
     "access.TrackedEntityAccess"

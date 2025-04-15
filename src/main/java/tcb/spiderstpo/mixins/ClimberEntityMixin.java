@@ -32,6 +32,9 @@ import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.phys.shapes.Shapes;
 import net.minecraft.world.phys.shapes.VoxelShape;
 import org.apache.commons.lang3.tuple.Pair;
+import org.jetbrains.annotations.Nullable;
+import org.joml.Matrix4f;
+import org.joml.Vector3f;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -39,7 +42,6 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import tcb.spiderstpo.common.CachedCollisionReader;
 import tcb.spiderstpo.common.CollisionSmoothingUtil;
-import tcb.spiderstpo.common.Matrix4f;
 import tcb.spiderstpo.common.PredicateBlockCollisions;
 import tcb.spiderstpo.common.entity.mob.*;
 import tcb.spiderstpo.common.entity.movement.*;
@@ -47,7 +49,6 @@ import tcb.spiderstpo.mixins.access.ChunkMapAccess;
 import tcb.spiderstpo.mixins.access.ServerEntityAccess;
 import tcb.spiderstpo.mixins.access.TrackedEntityAccess;
 
-import javax.annotation.Nullable;
 import java.lang.invoke.MethodHandles;
 import java.util.ArrayList;
 import java.util.List;
@@ -130,6 +131,72 @@ public abstract class ClimberEntityMixin extends PathfinderMob implements IClimb
 
     private ClimberEntityMixin(EntityType<? extends PathfinderMob> type, Level worldIn) {
         super(type, worldIn);
+    }
+
+    private static double calculateXOffset(AABB aabb, AABB other, double offsetX) {
+        if (other.maxY > aabb.minY && other.minY < aabb.maxY && other.maxZ > aabb.minZ && other.minZ < aabb.maxZ) {
+            if (offsetX > 0.0D && other.maxX <= aabb.minX) {
+                double dx = aabb.minX - other.maxX;
+
+                if (dx < offsetX) {
+                    offsetX = dx;
+                }
+            } else if (offsetX < 0.0D && other.minX >= aabb.maxX) {
+                double dx = aabb.maxX - other.minX;
+
+                if (dx > offsetX) {
+                    offsetX = dx;
+                }
+            }
+
+            return offsetX;
+        } else {
+            return offsetX;
+        }
+    }
+
+    private static double calculateYOffset(AABB aabb, AABB other, double offsetY) {
+        if (other.maxX > aabb.minX && other.minX < aabb.maxX && other.maxZ > aabb.minZ && other.minZ < aabb.maxZ) {
+            if (offsetY > 0.0D && other.maxY <= aabb.minY) {
+                double dy = aabb.minY - other.maxY;
+
+                if (dy < offsetY) {
+                    offsetY = dy;
+                }
+            } else if (offsetY < 0.0D && other.minY >= aabb.maxY) {
+                double dy = aabb.maxY - other.minY;
+
+                if (dy > offsetY) {
+                    offsetY = dy;
+                }
+            }
+
+            return offsetY;
+        } else {
+            return offsetY;
+        }
+    }
+
+    private static double calculateZOffset(AABB aabb, AABB other, double offsetZ) {
+        if (other.maxX > aabb.minX && other.minX < aabb.maxX && other.maxY > aabb.minY && other.minY < aabb.maxY) {
+            if (offsetZ > 0.0D && other.maxZ <= aabb.minZ) {
+                double dz = aabb.minZ - other.maxZ;
+
+                if (dz < offsetZ) {
+                    offsetZ = dz;
+                }
+            } else if (offsetZ < 0.0D && other.minZ >= aabb.maxZ) {
+                double dz = aabb.maxZ - other.minZ;
+
+                if (dz > offsetZ) {
+                    offsetZ = dz;
+                }
+            }
+
+            return offsetZ;
+        } else {
+            return offsetZ;
+        }
     }
 
     @Inject(method = "<init>*", at = @At("RETURN"))
@@ -264,72 +331,6 @@ public abstract class ClimberEntityMixin extends PathfinderMob implements IClimb
         return attribute != null ? (float) attribute.getValue() : 1.0f;
     }
 
-    private static double calculateXOffset(AABB aabb, AABB other, double offsetX) {
-        if (other.maxY > aabb.minY && other.minY < aabb.maxY && other.maxZ > aabb.minZ && other.minZ < aabb.maxZ) {
-            if (offsetX > 0.0D && other.maxX <= aabb.minX) {
-                double dx = aabb.minX - other.maxX;
-
-                if (dx < offsetX) {
-                    offsetX = dx;
-                }
-            } else if (offsetX < 0.0D && other.minX >= aabb.maxX) {
-                double dx = aabb.maxX - other.minX;
-
-                if (dx > offsetX) {
-                    offsetX = dx;
-                }
-            }
-
-            return offsetX;
-        } else {
-            return offsetX;
-        }
-    }
-
-    private static double calculateYOffset(AABB aabb, AABB other, double offsetY) {
-        if (other.maxX > aabb.minX && other.minX < aabb.maxX && other.maxZ > aabb.minZ && other.minZ < aabb.maxZ) {
-            if (offsetY > 0.0D && other.maxY <= aabb.minY) {
-                double dy = aabb.minY - other.maxY;
-
-                if (dy < offsetY) {
-                    offsetY = dy;
-                }
-            } else if (offsetY < 0.0D && other.minY >= aabb.maxY) {
-                double dy = aabb.maxY - other.minY;
-
-                if (dy > offsetY) {
-                    offsetY = dy;
-                }
-            }
-
-            return offsetY;
-        } else {
-            return offsetY;
-        }
-    }
-
-    private static double calculateZOffset(AABB aabb, AABB other, double offsetZ) {
-        if (other.maxX > aabb.minX && other.minX < aabb.maxX && other.maxY > aabb.minY && other.minY < aabb.maxY) {
-            if (offsetZ > 0.0D && other.maxZ <= aabb.minZ) {
-                double dz = aabb.minZ - other.maxZ;
-
-                if (dz < offsetZ) {
-                    offsetZ = dz;
-                }
-            } else if (offsetZ < 0.0D && other.minZ >= aabb.maxZ) {
-                double dz = aabb.maxZ - other.minZ;
-
-                if (dz > offsetZ) {
-                    offsetZ = dz;
-                }
-            }
-
-            return offsetZ;
-        } else {
-            return offsetZ;
-        }
-    }
-
     private void updateWalkingSide() {
         Direction avoidPathingFacing = null;
 
@@ -406,13 +407,13 @@ public abstract class ClimberEntityMixin extends PathfinderMob implements IClimb
     }
 
     @Override
-    public void setRenderOrientation(Orientation orientation) {
-        this.renderOrientation = orientation;
+    public Orientation getRenderOrientation() {
+        return this.renderOrientation;
     }
 
     @Override
-    public Orientation getRenderOrientation() {
-        return this.renderOrientation;
+    public void setRenderOrientation(Orientation orientation) {
+        this.renderOrientation = orientation;
     }
 
     @Override
@@ -568,7 +569,8 @@ public abstract class ClimberEntityMixin extends PathfinderMob implements IClimb
     private void forEachClimbableCollisonBox(AABB aabb, Shapes.DoubleLineConsumer action) {
         CollisionGetter cachedCollisionReader = new CachedCollisionReader(this.level, aabb);
 
-        Iterable<VoxelShape> shapes = () -> new PredicateBlockCollisions(cachedCollisionReader, this, aabb, this::canClimbOnBlock); cachedCollisionReader.getBlockCollisions(this, aabb);
+        Iterable<VoxelShape> shapes = () -> new PredicateBlockCollisions(cachedCollisionReader, this, aabb, this::canClimbOnBlock);
+        cachedCollisionReader.getBlockCollisions(this, aabb);
 
         shapes.forEach(shape -> shape.forAllBoxes(action));
     }
@@ -722,13 +724,13 @@ public abstract class ClimberEntityMixin extends PathfinderMob implements IClimb
 
         Matrix4f m = new Matrix4f();
 
-        m.multiply(new Matrix4f((float) Math.toRadians(yaw), 0, 1, 0));
-        m.multiply(new Matrix4f((float) Math.toRadians(pitch), 1, 0, 0));
-        m.multiply(new Matrix4f((float) Math.toRadians((float) Math.signum(0.5f - componentY - componentZ - componentX) * yaw), 0, 1, 0));
+        m.mul(new Matrix4f().rotate(Mth.DEG_TO_RAD * yaw, 0, 1, 0));
+        m.mul(new Matrix4f().rotate(Mth.DEG_TO_RAD * (pitch), 1, 0, 0));
+        m.mul(new Matrix4f().rotate(Mth.DEG_TO_RAD * (Math.signum(0.5f - componentY - componentZ - componentX) * yaw), 0, 1, 0));
 
-        localZ = m.multiply(new Vec3(0, 0, -1));
-        localY = m.multiply(new Vec3(0, 1, 0));
-        localX = m.multiply(new Vec3(1, 0, 0));
+        localZ = new Vec3(m.transformDirection(new Vector3f(0, 0, -1)));
+        localY = new Vec3(m.transformDirection(new Vector3f(0, 1, 0)));
+        localX = new Vec3(m.transformDirection(new Vector3f(1, 0, 0)));
 
         return new Orientation(attachmentNormal, localZ, localY, localX, componentZ, componentY, componentX, yaw, pitch);
     }
@@ -846,13 +848,13 @@ public abstract class ClimberEntityMixin extends PathfinderMob implements IClimb
 
             FluidState fluidState = this.level.getFluidState(this.blockPosition());
 
-            if (!this.canClimbInWater && this.isInWater() && this.isAffectedByFluids() && !this.canStandOnFluid(fluidState.getType())) {
+            if (!this.canClimbInWater && this.isInWater() && this.isAffectedByFluids() && !this.canStandOnFluid(fluidState)) {
                 this.isClimbingDisabled = true;
 
                 if (canTravel) {
                     return false;
                 }
-            } else if (!this.canClimbInLava && this.isInLava() && this.isAffectedByFluids() && !this.canStandOnFluid(fluidState.getType())) {
+            } else if (!this.canClimbInLava && this.isInLava() && this.isAffectedByFluids() && !this.canStandOnFluid(fluidState)) {
                 this.isClimbingDisabled = true;
 
                 if (canTravel) {
@@ -1042,6 +1044,7 @@ public abstract class ClimberEntityMixin extends PathfinderMob implements IClimb
 
         this.calculateEntityAnimation(this, true);
     }
+
     public void setLocationFromBoundingbox() {
         AABB axisalignedbb = this.getBoundingBox();
         this.setPosRaw((axisalignedbb.minX + axisalignedbb.maxX) / 2.0D, axisalignedbb.minY, (axisalignedbb.minZ + axisalignedbb.maxZ) / 2.0D);
