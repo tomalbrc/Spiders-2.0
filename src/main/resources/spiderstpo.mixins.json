@@ -1,12 +1,10 @@
 {
   "minVersion": "0.8",
   "required": true,
-  "compatibilityLevel": "JAVA_8",
+  "compatibilityLevel": "JAVA_21",
   "refmap": "spiderstpo.refmap.json",
   "package": "tcb.spiderstpo.mixins",
   "mixins": [
-    "BetterSpiderEntityMixin",
-    "ClimberEntityMixin",
     "EntityMixin",
     "LivingEntityMixin",
     "MobEntityMixin",

@@ -26,7 +26,7 @@ public class CollisionSmoothingUtil {
 
         float planeDst = pnx * (x - px) + pny * (y - py) + pnz * (z - pz);
 
-        for(int i = 0; i < count; i++) {
+        for (int i = 0; i < count; i++) {
             float rsx = x - ecx[i];
             float rsy = y - ecy[i];
             float rsz = z - ecz[i];
@@ -49,7 +49,7 @@ public class CollisionSmoothingUtil {
             float h = Mth.clamp(0.5f - 0.5f * (ellipsoidDst + planeDst) * invSmoothingRange, 0.0f, 1.0f);
             ellipsoidDst = ellipsoidDst + (-planeDst - ellipsoidDst) * h + smoothingRange * h * (1.0f - h);
 
-            if(i == 0) {
+            if (i == 0) {
                 sdfDst = ellipsoidDst;
             } else {
                 //Smooth min - https://www.iquilezles.org/www/articles/smin/smin.htm
@@ -87,7 +87,7 @@ public class CollisionSmoothingUtil {
 
         @Override
         public void consume(double minX, double minY, double minZ, double maxX, double maxY, double maxZ) {
-            if(this.size == this.capacity) {
+            if (this.size == this.capacity) {
                 this.capacity = (int) Math.max(Math.min((long) this.capacity + (this.capacity >> 1), it.unimi.dsi.fastutil.Arrays.MAX_ARRAY_SIZE), this.capacity);
                 this.erx = FloatArrays.forceCapacity(this.erx, this.capacity, this.size);
                 this.ery = FloatArrays.forceCapacity(this.ery, this.capacity, this.size);
@@ -115,7 +115,7 @@ public class CollisionSmoothingUtil {
 
         consumer.accept(boxConsumer);
 
-        if(boxConsumer.size == 0) {
+        if (boxConsumer.size == 0) {
             return null;
         }
 
@@ -124,7 +124,7 @@ public class CollisionSmoothingUtil {
 
     @Nullable
     public static Pair<Vec3, Vec3> findClosestPoint(List<AABB> boxes, Vec3 pp, Vec3 pn, float smoothingRange, float boxScale, float dx, int iters, float threshold, Vec3 p) {
-        if(boxes.isEmpty()) {
+        if (boxes.isEmpty()) {
             return null;
         }
 
@@ -137,7 +137,7 @@ public class CollisionSmoothingUtil {
         float[] ecz = new float[boxes.size()];
 
         int i = 0;
-        for(AABB box : boxes) {
+        for (AABB box : boxes) {
             erx[i] = 1.0f / ((float) (box.maxX - box.minX) / 2 * boxScale);
             ery[i] = 1.0f / ((float) (box.maxY - box.minY) / 2 * boxScale);
             erz[i] = 1.0f / ((float) (box.maxZ - box.minZ) / 2 * boxScale);
@@ -169,7 +169,7 @@ public class CollisionSmoothingUtil {
 
         float invSmoothingRange = 1.0f / smoothingRange;
 
-        for(int j = 0; j < iters; j++) {
+        for (int j = 0; j < iters; j++) {
             float dst = sampleSdf(erx, ery, erz, ecx, ecy, ecz, count, plx, ply, plz, pnx, pny, pnz, px, py, pz, smoothingRange, invSmoothingRange);
 
             float fx1 = sampleSdf(erx, ery, erz, ecx, ecy, ecz, count, plx, ply, plz, pnx, pny, pnz, px + dx, py, pz, smoothingRange, invSmoothingRange);
@@ -184,7 +184,7 @@ public class CollisionSmoothingUtil {
             gy *= m;
             gz *= m;
 
-            if(Float.isNaN(gx) || Float.isNaN(gy) || Float.isNaN(gz) || Double.isNaN(px) || Double.isNaN(py) || Double.isNaN(pz)) {
+            if (Float.isNaN(gx) || Float.isNaN(gy) || Float.isNaN(gz) || Double.isNaN(px) || Double.isNaN(py) || Double.isNaN(pz)) {
                 return null;
             }
 
@@ -196,7 +196,7 @@ public class CollisionSmoothingUtil {
             py += gy * step;
             pz += gz * step;
 
-            if(absDst < threshold) {
+            if (absDst < threshold) {
                 return Pair.of(new Vec3(p.x + px, p.y + py, p.z + pz), new Vec3(-gx, -gy, -gz).normalize());
             }
         }

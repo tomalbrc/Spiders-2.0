@@ -1,23 +1,36 @@
-package tcb.spiderstpo.mixins;
+package tcb.spiderstpo.polymer;
 
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
-import net.minecraft.commands.arguments.EntityAnchorArgument.Anchor;
+import net.minecraft.commands.arguments.EntityAnchorArgument;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.Rotations;
+import net.minecraft.core.Vec3i;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.SynchedEntityData;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ChunkMap;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.util.Mth;
 import net.minecraft.world.effect.MobEffects;
-import net.minecraft.world.entity.*;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.Mob;
+import net.minecraft.world.entity.MoverType;
 import net.minecraft.world.entity.ai.attributes.AttributeInstance;
+import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
+import net.minecraft.world.entity.ai.goal.*;
+import net.minecraft.world.entity.ai.goal.target.HurtByTargetGoal;
 import net.minecraft.world.entity.ai.navigation.PathNavigation;
+import net.minecraft.world.entity.animal.IronGolem;
+import net.minecraft.world.entity.animal.armadillo.Armadillo;
 import net.minecraft.world.entity.monster.Spider;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.CollisionGetter;
 import net.minecraft.world.level.Level;
@@ -28,33 +41,128 @@ import net.minecraft.world.level.border.WorldBorder;
 import net.minecraft.world.level.material.FluidState;
 import net.minecraft.world.level.pathfinder.Node;
 import net.minecraft.world.level.pathfinder.Path;
+import net.minecraft.world.level.pathfinder.PathType;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.phys.shapes.Shapes;
 import net.minecraft.world.phys.shapes.VoxelShape;
 import org.apache.commons.lang3.tuple.Pair;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-import org.joml.Matrix4f;
-import org.joml.Vector3f;
-import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.Shadow;
-import org.spongepowered.asm.mixin.injection.At;
-import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
-import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import tcb.spiderstpo.common.CollisionSmoothingUtil;
+import tcb.spiderstpo.common.Config;
+import tcb.spiderstpo.common.ModTags;
+import tcb.spiderstpo.common.SpiderMod;
+import tcb.spiderstpo.common.entity.goal.BetterLeapAtTargetGoal;
 import tcb.spiderstpo.common.entity.mob.*;
 import tcb.spiderstpo.common.entity.movement.*;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Predicate;
+
+public class BetterSpiderEntity extends Spider implements IClimberEntity, IAdvancedPathFindingEntity, IEntityReadWriteHook, IMobEntityTickHook, ILivingEntityLookAtHook, ILivingEntityRotationHook, ILivingEntityDataManagerHook, ILivingEntityJumpHook, ILivingEntityTravelHook, IEntityMovementHook {
+    public static final ResourceLocation ID = ResourceLocation.fromNamespaceAndPath(SpiderMod.MODID, "spider");
+
+    private static final AttributeModifier FOLLOW_RANGE_INCREASE = new AttributeModifier(ResourceLocation.fromNamespaceAndPath(SpiderMod.MODID, "spider_follow_range_increase"), 8.0D, AttributeModifier.Operation.ADD_VALUE);
+    private boolean pathFinderDebugPreview;
+
+    public BetterSpiderEntity(EntityType<? extends Spider> type, Level worldIn) {
+        super(type, worldIn);
+
+        this.getAttribute(Attributes.STEP_HEIGHT).setBaseValue(0.1);
+        this.orientation = this.calculateOrientation(1);
+        this.groundDirection = this.getGroundDirection();
+        this.moveControl = new ClimberMoveController<>(this);
+        this.lookControl = new ClimberLookController<>(this);
+        this.jumpControl = new ClimberJumpController<>(this);
+
+        this.lootTable = Optional.of(ResourceKey.create(Registries.LOOT_TABLE, ResourceLocation.withDefaultNamespace("entities/spider")));
+
+        var attr = this.getAttribute(Attributes.FOLLOW_RANGE);
+        if (attr != null)
+            attr.addPermanentModifier(FOLLOW_RANGE_INCREASE);
+    }
+
+    @Override
+    public void defineSynchedData(SynchedEntityData.Builder builder) {
+        super.defineSynchedData(builder);
+        this.pathFinderDebugPreview = Config.getConfig().isPathFinderDebugPreview();
+    }
+
+    @Override
+    protected void registerGoals() {
+        this.goalSelector.addGoal(1, new FloatGoal(this));
+        this.goalSelector.addGoal(2, new AvoidEntityGoal<>(this, Armadillo.class, 6.0F, (double) 1.0F, 1.2, (livingEntity) -> !((Armadillo) livingEntity).isScared()));
+        this.goalSelector.addGoal(3, new BetterLeapAtTargetGoal<>(this, 0.4f));
+        this.goalSelector.addGoal(4, new SpiderAttackGoal(this));
+        this.goalSelector.addGoal(5, new WaterAvoidingRandomStrollGoal(this, 0.8));
+        this.goalSelector.addGoal(6, new LookAtPlayerGoal(this, Player.class, 8.0F));
+        this.goalSelector.addGoal(6, new RandomLookAroundGoal(this));
+        this.targetSelector.addGoal(1, new HurtByTargetGoal(this).setUnseenMemoryTicks(200));
+        this.targetSelector.addGoal(2, new SpiderTargetGoal<>(this, Player.class).setUnseenMemoryTicks(200));
+        this.targetSelector.addGoal(3, new SpiderTargetGoal<>(this, IronGolem.class).setUnseenMemoryTicks(200));
+    }
 
 
-@Mixin(value = {Spider.class})
-public abstract class ClimberEntityMixin extends PathfinderMob implements IClimberEntity, IMobEntityLivingTickHook, ILivingEntityLookAtHook, IMobEntityTickHook, ILivingEntityRotationHook, ILivingEntityDataManagerHook, ILivingEntityTravelHook, IEntityMovementHook, IEntityReadWriteHook, ILivingEntityJumpHook {
+    @Override
+    public boolean shouldTrackPathingTargets() {
+        return this.pathFinderDebugPreview;
+    }
 
-    @Shadow protected abstract void defineSynchedData(SynchedEntityData.Builder builder);
+    @Override
+    public boolean canClimbOnBlock(BlockState state, BlockPos pos) {
+        return !state.is(ModTags.NON_CLIMBABLE);
+    }
+
+    @Override
+    public float getBlockSlipperiness(BlockPos pos) {
+        BlockState offsetState = this.level().getBlockState(pos);
+
+        float slipperiness = offsetState.getBlock().getFriction() * 0.91f;
+
+        if (offsetState.is(ModTags.NON_CLIMBABLE)) {
+            slipperiness = 1 - (1 - slipperiness) * 0.25f;
+        }
+
+        return slipperiness;
+    }
+
+    @Override
+    public float getPathingMalus(BlockGetter cache, Mob entity, PathType nodeType, BlockPos pos, Vec3i direction, Predicate<Direction> sides) {
+        if (direction.getY() != 0) {
+            boolean hasClimbableNeigbor = false;
+
+            BlockPos.MutableBlockPos offsetPos = new BlockPos.MutableBlockPos();
+
+            for (Direction offset : Direction.values()) {
+                if (sides.test(offset)) {
+                    offsetPos.set(pos.getX() + offset.getStepX(), pos.getY() + offset.getStepY(), pos.getZ() + offset.getStepZ());
+
+                    BlockState state = cache.getBlockState(offsetPos);
+
+                    if (this.canClimbOnBlock(state, offsetPos)) {
+                        hasClimbableNeigbor = true;
+                    }
+                }
+            }
+
+            if (!hasClimbableNeigbor) {
+                return -1.0f;
+            }
+        }
+
+        return entity.getPathfindingMalus(nodeType);
+    }
+
+    @Override
+    @NotNull
+    protected PathNavigation createNavigation(Level level) {
+        BetterSpiderPathNavigator<BetterSpiderEntity> navigate = new BetterSpiderPathNavigator<>(this, level, false);
+        navigate.setCanFloat(true);
+        return navigate;
+    }
 
     private static float MOVEMENT_TARGET_X;
     private static float MOVEMENT_TARGET_Y;
@@ -103,26 +211,6 @@ public abstract class ClimberEntityMixin extends PathfinderMob implements IClimb
 
     private Vec3 jumpDir;
 
-    private ClimberEntityMixin(EntityType<? extends PathfinderMob> type, Level worldIn) {
-        super(type, worldIn);
-    }
-
-    @Inject(method = "<init>*", at = @At("RETURN"))
-    private void onConstructed(CallbackInfo ci) {
-        this.getAttribute(Attributes.STEP_HEIGHT).setBaseValue(0.1);
-        this.orientation = this.calculateOrientation(1);
-        this.groundDirection = this.getGroundDirection();
-        this.moveControl = new ClimberMoveController<>(this);
-        this.lookControl = new ClimberLookController<>(this);
-        this.jumpControl = new ClimberJumpController<>(this);
-    }
-
-    @Inject(method = "createNavigation", at = @At("HEAD"), cancellable = true)
-    private void onCreateNavigator(Level world, CallbackInfoReturnable<PathNavigation> ci) {
-        BetterSpiderPathNavigator<ClimberEntityMixin> navigate = new BetterSpiderPathNavigator<ClimberEntityMixin>(this, world, false);
-        navigate.setCanFloat(true);
-        ci.setReturnValue(navigate);
-    }
 
     @Override
     public void onWrite(CompoundTag nbt) {
@@ -367,7 +455,7 @@ public abstract class ClimberEntityMixin extends PathfinderMob implements IClimb
     }
 
     @Override
-    public Vec3 onLookAt(Anchor anchor, Vec3 vec) {
+    public Vec3 onLookAt(EntityAnchorArgument.Anchor anchor, Vec3 vec) {
         Vec3 dir = vec.subtract(this.position());
         dir = this.getOrientation().getLocal(dir);
         return dir;
@@ -375,6 +463,8 @@ public abstract class ClimberEntityMixin extends PathfinderMob implements IClimb
 
     @Override
     public void onTick() {
+
+
         if (!this.level().isClientSide && this.level() instanceof ServerLevel) {
             ChunkMap.TrackedEntity entityTracker = ((ServerLevel) this.level()).getChunkSource().chunkMap.entityMap.get(this.getId());
 
@@ -447,7 +537,8 @@ public abstract class ClimberEntityMixin extends PathfinderMob implements IClimb
     }
 
     @Override
-    public void onLivingTick() {
+    public void aiStep() {
+        super.aiStep();
         this.updateWalkingSide();
     }
 
@@ -569,17 +660,6 @@ public abstract class ClimberEntityMixin extends PathfinderMob implements IClimb
         return boxes;
     }
 
-    @Override
-    public boolean canClimbOnBlock(BlockState state, BlockPos pos) {
-        return true;
-    }
-
-    @Override
-    public float getBlockSlipperiness(BlockPos pos) {
-        BlockState offsetState = this.level().getBlockState(pos);
-        return offsetState.getBlock().getFriction() * 0.91f;
-    }
-
     private void updateOffsetsAndOrientation() {
         Vec3 direction = this.getOrientation().getGlobal(this.getYRot(), this.getXRot());
 
@@ -695,20 +775,30 @@ public abstract class ClimberEntityMixin extends PathfinderMob implements IClimb
         componentX = (float) localX.dot(attachmentNormal);
 
         float pitch = (float) Math.toDegrees(Mth.atan2(Mth.sqrt(componentX * componentX + componentZ * componentZ), componentY));
+        pitch = (pitch + 360) % 360;
 
         Matrix4f m = new Matrix4f();
+        m.multiply(new Matrix4f((float) Math.toRadians(yaw), 0, 1, 0));
+        m.multiply(new Matrix4f((float) Math.toRadians(pitch), 1, 0, 0));
+        m.multiply(new Matrix4f((float) Math.toRadians((float) Math.signum(0.5f - componentY - componentZ - componentX) * yaw), 0, 1, 0));
 
-        m.mul(new Matrix4f().rotate(Mth.DEG_TO_RAD * (yaw), 0, 1, 0));
-        m.mul(new Matrix4f().rotate(Mth.DEG_TO_RAD * (pitch), 1, 0, 0));
-        m.mul(new Matrix4f().rotate(Mth.DEG_TO_RAD * (Math.signum(0.5f - componentY - componentZ - componentX) * yaw), 0, 1, 0));
-
-        localZ = new Vec3(m.transformDirection(new Vector3f(0, 0, -1)));
-        localY = new Vec3(m.transformDirection(new Vector3f(0, 1, 0)));
-        localX = new Vec3(m.transformDirection(new Vector3f(1, 0, 0)));
+        localZ = m.multiply(new Vec3(0, 0, -1));
+        localY = m.multiply(new Vec3(0, 1, 0));
+        localX = m.multiply(new Vec3(1, 0, 0));
 
         return new Orientation(attachmentNormal, localZ, localY, localX, componentZ, componentY, componentX, yaw, pitch);
     }
 
+
+    @Override
+    public float getTargetYaw(double x, double y, double z, float yaw, float pitch, int posRotationIncrements, boolean teleport) {
+        return yaw;
+    }
+
+    @Override
+    public float getTargetPitch(double x, double y, double z, float yaw, float pitch, int posRotationIncrements, boolean teleport) {
+        return pitch;
+    }
 
     @Override
     public float getTargetHeadYaw(float yaw, int rotationIncrements) {
@@ -736,11 +826,8 @@ public abstract class ClimberEntityMixin extends PathfinderMob implements IClimb
 //		}
     }
 
+    @Override
     public double getDefaultGravity() {
-        if (this.isNoGravity()) {
-            return 0;
-        }
-
         double gravity = 0.08d;
 
         boolean isFalling = this.getDeltaMovement().y <= 0.0D;
@@ -1087,4 +1174,6 @@ public abstract class ClimberEntityMixin extends PathfinderMob implements IClimb
         AABB axisalignedbb = this.getBoundingBox();
         this.setPosRaw((axisalignedbb.minX + axisalignedbb.maxX) / 2.0D, axisalignedbb.minY, (axisalignedbb.minZ + axisalignedbb.maxZ) / 2.0D);
     }
+
+
 }
