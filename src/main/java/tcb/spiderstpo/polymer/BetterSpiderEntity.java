@@ -4,7 +4,6 @@ import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import net.minecraft.commands.arguments.EntityAnchorArgument;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
-import net.minecraft.core.Rotations;
 import net.minecraft.core.Vec3i;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
@@ -49,6 +48,8 @@ import net.minecraft.world.phys.shapes.VoxelShape;
 import org.apache.commons.lang3.tuple.Pair;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.joml.Matrix4f;
+import org.joml.Vector3f;
 import tcb.spiderstpo.common.CollisionSmoothingUtil;
 import tcb.spiderstpo.common.Config;
 import tcb.spiderstpo.common.ModTags;
@@ -59,6 +60,7 @@ import tcb.spiderstpo.common.entity.movement.*;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Predicate;
 
@@ -71,7 +73,7 @@ public class BetterSpiderEntity extends Spider implements IClimberEntity, IAdvan
     public BetterSpiderEntity(EntityType<? extends Spider> type, Level worldIn) {
         super(type, worldIn);
 
-        this.getAttribute(Attributes.STEP_HEIGHT).setBaseValue(0.1);
+        Objects.requireNonNull(this.getAttribute(Attributes.STEP_HEIGHT)).setBaseValue(0.1);
         this.orientation = this.calculateOrientation(1);
         this.groundDirection = this.getGroundDirection();
         this.moveControl = new ClimberMoveController<>(this);
@@ -94,7 +96,7 @@ public class BetterSpiderEntity extends Spider implements IClimberEntity, IAdvan
     @Override
     protected void registerGoals() {
         this.goalSelector.addGoal(1, new FloatGoal(this));
-        this.goalSelector.addGoal(2, new AvoidEntityGoal<>(this, Armadillo.class, 6.0F, (double) 1.0F, 1.2, (livingEntity) -> !((Armadillo) livingEntity).isScared()));
+        this.goalSelector.addGoal(2, new AvoidEntityGoal<>(this, Armadillo.class, 6.0F, 1.0F, 1.2, (livingEntity) -> !((Armadillo) livingEntity).isScared()));
         this.goalSelector.addGoal(3, new BetterLeapAtTargetGoal<>(this, 0.4f));
         this.goalSelector.addGoal(4, new SpiderAttackGoal(this));
         this.goalSelector.addGoal(5, new WaterAvoidingRandomStrollGoal(this, 0.8));
@@ -170,17 +172,11 @@ public class BetterSpiderEntity extends Spider implements IClimberEntity, IAdvan
     private static final List<Optional<BlockPos>> PATHING_TARGETS = new ObjectArrayList<>(8);
     private static final List<Direction> PATHING_SIDES = new ObjectArrayList<>(8);
 
-    private static Rotations ROTATION_BODY = new Rotations(0,0,0);
-    private static Rotations ROTATION_HEAD = new Rotations(0,0,0);
-
     private double prevAttachmentOffsetX, prevAttachmentOffsetY, prevAttachmentOffsetZ;
     private double attachmentOffsetX, attachmentOffsetY, attachmentOffsetZ;
 
     private Vec3 attachmentNormal = new Vec3(0, 1, 0);
     private Vec3 prevAttachmentNormal = new Vec3(0, 1, 0);
-
-    private float prevOrientationYawDelta;
-    private float orientationYawDelta;
 
     private double lastAttachmentOffsetX, lastAttachmentOffsetY, lastAttachmentOffsetZ;
 
@@ -189,7 +185,6 @@ public class BetterSpiderEntity extends Spider implements IClimberEntity, IAdvan
     private int attachedTicks = 5;
 
     private Vec3 attachedSides = new Vec3(0, 0, 0);
-    private Vec3 prevAttachedSides = new Vec3(0, 0, 0);
 
     private boolean canClimbInWater = false;
     private boolean canClimbInLava = false;
@@ -204,7 +199,7 @@ public class BetterSpiderEntity extends Spider implements IClimberEntity, IAdvan
 
     private Orientation renderOrientation;
 
-    private float nextStepDistance, nextFlap;
+    private float nextStepDistance;
     private Vec3 preWalkingPosition;
 
     private double preMoveY;
@@ -354,15 +349,12 @@ public class BetterSpiderEntity extends Spider implements IClimberEntity, IAdvan
                     offsetZ = dz;
                 }
             }
-
-            return offsetZ;
-        } else {
-            return offsetZ;
         }
+        return offsetZ;
     }
 
     private void updateWalkingSide() {
-        Direction avoidPathingFacing = null;
+        //Direction avoidPathingFacing = null;
 
         AABB entityBox = this.getBoundingBox();
 
@@ -374,29 +366,23 @@ public class BetterSpiderEntity extends Spider implements IClimberEntity, IAdvan
         float stickingDistance = this.zza != 0 ? 1.5f : 0.1f;
 
         for (Direction facing : Direction.values()) {
-            if (avoidPathingFacing == facing) {
-                continue;
-            }
+//            if (avoidPathingFacing == facing) {
+//                continue;
+//            }
 
             List<AABB> collisionBoxes = this.getCollisionBoxes(entityBox.inflate(0.2f).expandTowards(facing.getStepX() * stickingDistance, facing.getStepY() * stickingDistance, facing.getStepZ() * stickingDistance));
 
             double closestDst = Double.MAX_VALUE;
 
             for (AABB collisionBox : collisionBoxes) {
-                switch (facing) {
-                    case EAST:
-                    case WEST:
-                        closestDst = Math.min(closestDst, Math.abs(calculateXOffset(entityBox, collisionBox, -facing.getStepX() * stickingDistance)));
-                        break;
-                    case UP:
-                    case DOWN:
-                        closestDst = Math.min(closestDst, Math.abs(calculateYOffset(entityBox, collisionBox, -facing.getStepY() * stickingDistance)));
-                        break;
-                    case NORTH:
-                    case SOUTH:
-                        closestDst = Math.min(closestDst, Math.abs(calculateZOffset(entityBox, collisionBox, -facing.getStepZ() * stickingDistance)));
-                        break;
-                }
+                closestDst = switch (facing) {
+                    case EAST, WEST ->
+                            Math.min(closestDst, Math.abs(calculateXOffset(entityBox, collisionBox, -facing.getStepX() * stickingDistance)));
+                    case UP, DOWN ->
+                            Math.min(closestDst, Math.abs(calculateYOffset(entityBox, collisionBox, -facing.getStepY() * stickingDistance)));
+                    case NORTH, SOUTH ->
+                            Math.min(closestDst, Math.abs(calculateZOffset(entityBox, collisionBox, -facing.getStepZ() * stickingDistance)));
+                };
             }
 
             if (closestDst < closestFacingDst) {
@@ -443,15 +429,14 @@ public class BetterSpiderEntity extends Spider implements IClimberEntity, IAdvan
 
     @Override
     public float getAttachmentOffset(Direction.Axis axis, float partialTicks) {
-        switch (axis) {
-            default:
-            case X:
-                return (float) (this.prevAttachmentOffsetX + (this.attachmentOffsetX - this.prevAttachmentOffsetX) * partialTicks);
-            case Y:
-                return (float) (this.prevAttachmentOffsetY + (this.attachmentOffsetY - this.prevAttachmentOffsetY) * partialTicks);
-            case Z:
-                return (float) (this.prevAttachmentOffsetZ + (this.attachmentOffsetZ - this.prevAttachmentOffsetZ) * partialTicks);
-        }
+        return switch (axis) {
+            case Y ->
+                    (float) (this.prevAttachmentOffsetY + (this.attachmentOffsetY - this.prevAttachmentOffsetY) * partialTicks);
+            case Z ->
+                    (float) (this.prevAttachmentOffsetZ + (this.attachmentOffsetZ - this.prevAttachmentOffsetZ) * partialTicks);
+            default ->
+                    (float) (this.prevAttachmentOffsetX + (this.attachmentOffsetX - this.prevAttachmentOffsetX) * partialTicks);
+        };
     }
 
     @Override
@@ -471,13 +456,6 @@ public class BetterSpiderEntity extends Spider implements IClimberEntity, IAdvan
             //Prevent premature syncing of position causing overly smoothed movement
             if (entityTracker != null && entityTracker.serverEntity.tickCount % entityTracker.serverEntity.updateInterval == 0) {
                 Orientation orientation = this.getOrientation();
-
-                Vec3 look = orientation.getGlobal(this.getYRot(), this.getXRot());
-                ROTATION_BODY = new Rotations((float) look.x, (float) look.y, (float) look.z);
-
-                look = orientation.getGlobal(this.yHeadRot, 0.0f);
-                ROTATION_HEAD = new Rotations((float) look.x, (float) look.y, (float) look.z);
-
                 if (this.shouldTrackPathingTargets()) {
                     if (this.xxa != 0) {
                         Vec3 forwardVector = orientation.getGlobal(this.getYRot(), 0);
@@ -497,7 +475,7 @@ public class BetterSpiderEntity extends Spider implements IClimberEntity, IAdvan
                     Path path = this.getNavigation().getPath();
                     if (path != null) {
                         for (int i = 0; i < PATHING_TARGETS.size(); i++) {
-                            Optional<BlockPos> pathingTarget = PATHING_TARGETS.get(i);
+                            Optional<BlockPos> pathingTarget;
                             Direction pathingSide = PATHING_SIDES.get(i);
 
                             if (path.getNextNodeIndex() + i < path.getNodeCount()) {
@@ -508,11 +486,7 @@ public class BetterSpiderEntity extends Spider implements IClimberEntity, IAdvan
                                 if (point instanceof DirectionalPathPoint) {
                                     Direction dir = ((DirectionalPathPoint) point).getPathSide();
 
-                                    if (dir != null) {
-                                        pathingSide = dir;
-                                    } else {
-                                        pathingSide = Direction.DOWN;
-                                    }
+                                    pathingSide = Objects.requireNonNullElse(dir, Direction.DOWN);
                                 }
 
                             } else {
@@ -621,22 +595,25 @@ public class BetterSpiderEntity extends Spider implements IClimberEntity, IAdvan
             }
 
             @Override
+            @NotNull
             public BlockState getBlockState(BlockPos pos) {
                 return collisionReader.getBlockState(pos);
             }
 
             @Override
+            @NotNull
             public FluidState getFluidState(BlockPos pos) {
                 return collisionReader.getFluidState(pos);
             }
 
             @Override
+            @NotNull
             public WorldBorder getWorldBorder() {
                 return collisionReader.getWorldBorder();
             }
 
-
             @Override
+            @NotNull
             public List<VoxelShape> getEntityCollisions(Entity entity, AABB aabb) {
                 return collisionReader.getEntityCollisions(entity, aabb);
             }
@@ -723,9 +700,6 @@ public class BetterSpiderEntity extends Spider implements IClimberEntity, IAdvan
         float yawDelta = newRotations.getLeft() - this.getYRot();
         float pitchDelta = newRotations.getRight() - this.getXRot();
 
-        this.prevOrientationYawDelta = this.orientationYawDelta;
-        this.orientationYawDelta = yawDelta;
-
         this.setYRot(Mth.wrapDegrees(this.getYRot() + yawDelta));
         this.yRotO = this.wrapAngleInRange(this.yRotO/* + yawDelta*/, this.getYRot());
 
@@ -778,13 +752,13 @@ public class BetterSpiderEntity extends Spider implements IClimberEntity, IAdvan
         pitch = (pitch + 360) % 360;
 
         Matrix4f m = new Matrix4f();
-        m.multiply(new Matrix4f((float) Math.toRadians(yaw), 0, 1, 0));
-        m.multiply(new Matrix4f((float) Math.toRadians(pitch), 1, 0, 0));
-        m.multiply(new Matrix4f((float) Math.toRadians((float) Math.signum(0.5f - componentY - componentZ - componentX) * yaw), 0, 1, 0));
+        m.rotate(Mth.DEG_TO_RAD * yaw, 0, 1, 0);
+        m.rotate(Mth.DEG_TO_RAD * pitch, 1, 0, 0);
+        m.rotate(Mth.DEG_TO_RAD * (Math.signum(0.5f - componentY - componentZ - componentX) * yaw), 0, 1, 0);
 
-        localZ = m.multiply(new Vec3(0, 0, -1));
-        localY = m.multiply(new Vec3(0, 1, 0));
-        localX = m.multiply(new Vec3(1, 0, 0));
+        localZ = new Vec3(m.transformDirection(new Vector3f(0, 0, -1)));
+        localY = new Vec3(m.transformDirection(new Vector3f(0, 1, 0)));
+        localX = new Vec3(m.transformDirection(new Vector3f(1, 0, 0)));
 
         return new Orientation(attachmentNormal, localZ, localY, localX, componentZ, componentY, componentX, yaw, pitch);
     }
@@ -807,23 +781,7 @@ public class BetterSpiderEntity extends Spider implements IClimberEntity, IAdvan
 
     @Override
     public void onNotifyDataManagerChange(EntityDataAccessor<?> key) {
-//		if(ROTATION_BODY.equals(key)) {
-//			Vector3f rotation = getData().getRotationBody();
-//			Vec3 look = new Vec3(rotation.x(), rotation.y(), rotation.z());
-//
-//			Pair<Float, Float> rotations = this.getOrientation().getLocalRotation(look);
-//
-//			this.lerpYRot = rotations.getLeft();
-//			this.lerpXRot = rotations.getRight();
-//		} else if(ROTATION_HEAD.equals(key)) {
-//			Vector3f rotation = getData().getRotationHead();
-//			Vec3 look = new Vec3(rotation.x(), rotation.y(), rotation.z());
-//
-//			Pair<Float, Float> rotations = this.getOrientation().getLocalRotation(look);
-//
-//			this.lerpYHeadRot = rotations.getLeft();
-//			this.lerpHeadSteps = 3;
-//		}
+
     }
 
     @Override
@@ -856,7 +814,7 @@ public class BetterSpiderEntity extends Spider implements IClimberEntity, IAdvan
         if (this.jumpDir != null) {
             float jumpStrength = this.getJumpPower();
             if (this.hasEffect(MobEffects.JUMP_BOOST)) {
-                jumpStrength += 0.1F * (float) (this.getEffect(MobEffects.JUMP_BOOST).getAmplifier() + 1);
+                jumpStrength += 0.1f * (Objects.requireNonNull(this.getEffect(MobEffects.JUMP_BOOST)).getAmplifier() + 1.f);
             }
 
             Vec3 motion = this.getDeltaMovement();
@@ -1009,7 +967,7 @@ public class BetterSpiderEntity extends Spider implements IClimberEntity, IAdvan
 
         this.move(MoverType.SELF, motion);
 
-        this.prevAttachedSides = this.attachedSides;
+        Vec3 prevAttachedSides = this.attachedSides;
         this.attachedSides = new Vec3(Math.abs(this.getX() - px - motion.x) > 0.001D ? -Math.signum(motion.x) : 0, Math.abs(this.getY() - py - motion.y) > 0.001D ? -Math.signum(motion.y) : 0, Math.abs(this.getZ() - pz - motion.z) > 0.001D ? -Math.signum(motion.z) : 0);
 
         float slipperiness = 0.91f;
@@ -1027,21 +985,21 @@ public class BetterSpiderEntity extends Spider implements IClimberEntity, IAdvan
 
         this.setDeltaMovement(tangentialMotion.x * slipperiness + orthogonalMotion.x * 0.98f, tangentialMotion.y * slipperiness + orthogonalMotion.y * 0.98f, tangentialMotion.z * slipperiness + orthogonalMotion.z * 0.98f);
 
-        boolean detachedX = this.attachedSides.x != this.prevAttachedSides.x && Math.abs(this.attachedSides.x) < 0.001D;
-        boolean detachedY = this.attachedSides.y != this.prevAttachedSides.y && Math.abs(this.attachedSides.y) < 0.001D;
-        boolean detachedZ = this.attachedSides.z != this.prevAttachedSides.z && Math.abs(this.attachedSides.z) < 0.001D;
+        boolean detachedX = this.attachedSides.x != prevAttachedSides.x && Math.abs(this.attachedSides.x) < 0.001D;
+        boolean detachedY = this.attachedSides.y != prevAttachedSides.y && Math.abs(this.attachedSides.y) < 0.001D;
+        boolean detachedZ = this.attachedSides.z != prevAttachedSides.z && Math.abs(this.attachedSides.z) < 0.001D;
 
         if (detachedX || detachedY || detachedZ) {
             float stepHeight = this.maxUpStep();
-            this.getAttribute(Attributes.STEP_HEIGHT).setBaseValue(0);
+            Objects.requireNonNull(this.getAttribute(Attributes.STEP_HEIGHT)).setBaseValue(0);
             boolean prevOnGround = this.onGround();
             boolean prevCollidedHorizontally = this.horizontalCollision;
             boolean prevCollidedVertically = this.verticalCollision;
 
             //Offset so that AABB is moved above the new surface
-            this.move(MoverType.SELF, new Vec3(detachedX ? -this.prevAttachedSides.x * 0.25f : 0, detachedY ? -this.prevAttachedSides.y * 0.25f : 0, detachedZ ? -this.prevAttachedSides.z * 0.25f : 0));
+            this.move(MoverType.SELF, new Vec3(detachedX ? -prevAttachedSides.x * 0.25f : 0, detachedY ? -prevAttachedSides.y * 0.25f : 0, detachedZ ? -prevAttachedSides.z * 0.25f : 0));
 
-            Vec3 axis = this.prevAttachedSides.normalize();
+            Vec3 axis = prevAttachedSides.normalize();
             Vec3 attachVector = upVector.scale(-1);
             attachVector = attachVector.subtract(axis.scale(axis.dot(attachVector)));
 
@@ -1063,7 +1021,7 @@ public class BetterSpiderEntity extends Spider implements IClimberEntity, IAdvan
                 this.move(MoverType.SELF, attachVector.scale(attachDst));
             }
 
-            this.getAttribute(Attributes.STEP_HEIGHT).setBaseValue(stepHeight);
+            Objects.requireNonNull(this.getAttribute(Attributes.STEP_HEIGHT)).setBaseValue(stepHeight);
 
             //Attaching failed, fall back to previous position
             if (!this.onGround()) {

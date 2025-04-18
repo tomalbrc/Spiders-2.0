@@ -28,13 +28,14 @@ import tcb.spiderstpo.common.SpiderMod;
 import java.util.Map;
 import java.util.function.Function;
 
+@SuppressWarnings("SameParameterValue")
 public class MobRegistry {
     public static final EntityType<PolyBetterSpiderEntity> SPIDER = register(
             BetterSpiderEntity.ID,
             FabricEntityType.Builder.createMob(PolyBetterSpiderEntity::new, MobCategory.MONSTER, x -> x
                             .defaultAttributes(Spider::createAttributes)
                             .spawnRestriction(SpawnPlacementTypes.ON_GROUND, Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, Spider::checkMonsterSpawnRules))
-                    .sized(1.0F, 0.85F).eyeHeight(0.65F).passengerAttachments(0.765F).clientTrackingRange(8)
+                    .sized(1.1F, 1.F).eyeHeight(0.65F).passengerAttachments(0.765F).clientTrackingRange(8)
     );
 
 
