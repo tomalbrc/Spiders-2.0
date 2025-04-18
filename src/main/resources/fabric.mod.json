@@ -2,19 +2,19 @@
   "schemaVersion": 1,
   "id": "spiderstpo",
   "version": "${version}",
-
   "name": "Spiders 2.0",
-  "description": "Vanilla spiders are not yet creepy enough for you? You wish spiders would §oactually climb properly§r?!\nSpiders 2.0 enables spiders to walk along walls and ceilings and it also improves their AI such that they can find their way around almost any obstacle!",
+  "description": "Vanilla spiders are not yet creepy enough for you? You wish spiders would §oactually climb properly§r?!\nSpiders 2.0 enables spiders to walk along walls and ceilings and it also improves their AI such that they can find their way around almost any obstacle! Serverside polymer port",
   "authors": [
-    "TheCyberBrick"
+    "TheCyberBrick",
+    "tomalbrc"
   ],
   "contact": {
-    "homepage": "https://github.com/CorgiTaco/Spiders-2.0",
-    "sources": "https://github.com/CorgiTaco/Spiders-2.0"
+    "homepage": "https://github.com/tomalbrc/Spiders-2.0",
+    "sources": "https://github.com/tomalbrc/Spiders-2.0"
   },
 
   "license": "GNU Lesser General Public License v2.1",
-  "icon": "assets/modid/icon.png",
+  "icon": "icon.png",
 
   "environment": "*",
   "entrypoints": {
@@ -27,10 +27,10 @@
   ],
   "accessWidener": "spiderstpo.aw",
   "depends": {
-    "fabricloader": ">=0.11.3",
+    "fabricloader": ">=0.16.10",
     "fabric": "*",
     "minecraft": "1.21.5",
-    "java": ">=17"
+    "java": ">=21"
   },
   "suggests": {
     "another-mod": "*"
