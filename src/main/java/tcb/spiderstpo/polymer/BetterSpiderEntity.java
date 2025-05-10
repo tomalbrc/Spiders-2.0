@@ -5,11 +5,9 @@ import net.minecraft.commands.arguments.EntityAnchorArgument;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.Vec3i;
-import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.SynchedEntityData;
-import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ChunkMap;
 import net.minecraft.server.level.ServerLevel;
@@ -80,7 +78,7 @@ public class BetterSpiderEntity extends Spider implements IClimberEntity, IAdvan
         this.lookControl = new ClimberLookController<>(this);
         this.jumpControl = new ClimberJumpController<>(this);
 
-        this.lootTable = Optional.of(ResourceKey.create(Registries.LOOT_TABLE, ResourceLocation.withDefaultNamespace("entities/spider")));
+        this.lootTable = EntityType.SPIDER.getDefaultLootTable();
 
         var attr = this.getAttribute(Attributes.FOLLOW_RANGE);
         if (attr != null)
@@ -209,22 +207,25 @@ public class BetterSpiderEntity extends Spider implements IClimberEntity, IAdvan
 
     @Override
     public void onWrite(CompoundTag nbt) {
-        nbt.putDouble("nyfsspiders.AttachmentNormalX", this.attachmentNormal.x);
-        nbt.putDouble("nyfsspiders.AttachmentNormalY", this.attachmentNormal.y);
-        nbt.putDouble("nyfsspiders.AttachmentNormalZ", this.attachmentNormal.z);
+        nbt.putDouble("AttachmentNormalX", this.attachmentNormal.x);
+        nbt.putDouble("AttachmentNormalY", this.attachmentNormal.y);
+        nbt.putDouble("AttachmentNormalZ", this.attachmentNormal.z);
 
-        nbt.putInt("nyfsspiders.AttachedTicks", this.attachedTicks);
+        nbt.putInt("AttachedTicks", this.attachedTicks);
     }
 
     @Override
     public void onRead(CompoundTag nbt) {
-        this.prevAttachmentNormal = this.attachmentNormal = new Vec3(
-                nbt.getDouble("nyfsspiders.AttachmentNormalX").orElseThrow(),
-                nbt.getDouble("nyfsspiders.AttachmentNormalY").orElseThrow(),
-                nbt.getDouble("nyfsspiders.AttachmentNormalZ").orElseThrow()
-        );
+        if (nbt.contains("AttachedTicks")) {
+            this.prevAttachmentNormal = this.attachmentNormal = new Vec3(
+                    nbt.getDouble("AttachmentNormalX").orElseThrow(),
+                    nbt.getDouble("AttachmentNormalY").orElseThrow(),
+                    nbt.getDouble("AttachmentNormalZ").orElseThrow()
+            );
 
-        this.attachedTicks = nbt.getInt("nyfsspiders.AttachedTicks").orElseThrow();
+            this.attachedTicks = nbt.getInt("AttachedTicks").orElseThrow();
+
+        }
 
         this.orientation = this.calculateOrientation(1);
     }
@@ -1132,6 +1133,4 @@ public class BetterSpiderEntity extends Spider implements IClimberEntity, IAdvan
         AABB axisalignedbb = this.getBoundingBox();
         this.setPosRaw((axisalignedbb.minX + axisalignedbb.maxX) / 2.0D, axisalignedbb.minY, (axisalignedbb.minZ + axisalignedbb.maxZ) / 2.0D);
     }
-
-
 }

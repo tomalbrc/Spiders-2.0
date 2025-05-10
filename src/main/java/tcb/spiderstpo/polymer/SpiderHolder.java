@@ -4,19 +4,20 @@ import com.mojang.math.Axis;
 import de.tomalbrc.bil.core.holder.entity.living.LivingEntityHolder;
 import de.tomalbrc.bil.core.holder.wrapper.Bone;
 import de.tomalbrc.bil.core.holder.wrapper.DisplayWrapper;
+import de.tomalbrc.bil.core.holder.wrapper.Locator;
 import de.tomalbrc.bil.core.model.Model;
 import de.tomalbrc.bil.core.model.Node;
 import de.tomalbrc.bil.core.model.Pose;
-import de.tomalbrc.bil.file.loader.BbModelLoader;
-import de.tomalbrc.bil.util.Utils;
 import eu.pb4.polymer.virtualentity.api.elements.ItemDisplayElement;
+import it.unimi.dsi.fastutil.objects.ObjectIterator;
 import net.minecraft.core.Direction;
-import net.minecraft.network.protocol.game.ClientboundBundlePacket;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.util.Brightness;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.EntityDimensions;
 import net.minecraft.world.entity.WalkAnimationState;
 import net.minecraft.world.phys.Vec2;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
@@ -24,8 +25,10 @@ import tcb.spiderstpo.common.SpiderMod;
 import tcb.spiderstpo.common.entity.mob.IClimberEntity;
 import tcb.spiderstpo.common.entity.mob.Orientation;
 
+import java.util.List;
+
 public class SpiderHolder<T extends PolyBetterSpiderEntity> extends LivingEntityHolder<T> {
-    public static Model MODEL = BbModelLoader.load(ResourceLocation.fromNamespaceAndPath(SpiderMod.MODID, "spider"));
+    public static Model MODEL = new CustomBbModelLoader().loadResource(ResourceLocation.fromNamespaceAndPath(SpiderMod.MODID, "spider"));
 
     DisplayWrapper<ItemDisplayElement> rightFront;
     DisplayWrapper<ItemDisplayElement> leftFront;
@@ -72,6 +75,7 @@ public class SpiderHolder<T extends PolyBetterSpiderEntity> extends LivingEntity
 
     public void updateElement(DisplayWrapper<?> display, @Nullable Pose pose) {
         display.element().setYaw(0);
+        display.element().setInterpolationDuration(2);
         if (pose == null) {
             this.applyPose(display.getLastPose(), display);
         } else {
@@ -91,6 +95,18 @@ public class SpiderHolder<T extends PolyBetterSpiderEntity> extends LivingEntity
         matrix4f.scale(new Vector3f(1.f));
         matrix4f.rotate(pose.readOnlyRightRotation());
 
+        var rot = getRot(display);
+        if (rot != null) {
+            if (display == leftBack || display == leftFront || display == middleLeftFront || display == middleLeftBack) {
+                matrix4f.rotateY(-rot.y);
+                matrix4f.rotateZ(-rot.x);
+            } else {
+                matrix4f.rotateY(rot.y);
+                matrix4f.rotateZ(rot.x);
+            }
+            display.element().setInterpolationDuration(2);
+        }
+
         var yy = 0.f;
         if (isHead && !isDead) {
             yy = (Mth.DEG_TO_RAD * -this.parent.yHeadRotO);
@@ -106,19 +122,13 @@ public class SpiderHolder<T extends PolyBetterSpiderEntity> extends LivingEntity
         matrix4f.rotateLocalY(yy);
 
 
-        var r = getRot(display);
-        if (r != null) {
-            matrix4f.rotateY(r.y);
-            matrix4f.rotateZ(r.x);
-        }
-
         if (isDead) {
             matrix4f.translateLocal(0, this.parent.getBbHeight(), 0);
             matrix4f.rotateLocalZ(-this.deathAngle * Mth.HALF_PI);
             matrix4f.translateLocal(0, -this.parent.getBbHeight(), 0);
         }
 
-        Matrix4f orientationMat = calculateRotationMatrix(1.0f);
+        Matrix4f orientationMat = calculateRotationMatrix(.1f);
         matrix4f = orientationMat.mul(matrix4f);
 
         matrix4f.scale(pose.readOnlyScale());
@@ -128,11 +138,53 @@ public class SpiderHolder<T extends PolyBetterSpiderEntity> extends LivingEntity
     }
 
     @Override
-    public void onDimensionsUpdated(EntityDimensions dimensions) {
-        dimensions = dimensions.scale(0.95f);
+    protected void setupElements(List<Bone> bones) {
+        ObjectIterator<Node> iterator = this.model.nodeMap().values().iterator();
+        while (iterator.hasNext()) {
+            Node node = iterator.next();
+            Pose defaultPose = this.model.defaultPose().get(node.uuid());
+            switch (node.type()) {
+                case BONE:
+                    ItemDisplayElement bone = this.createBoneDisplay(node.modelData());
+                    if (bone != null) {
+                        if (node.name().equals("head2")) {
+                            bones.add(headEmissiveBone(bone, node, defaultPose));
+                            bone.setBrightness(Brightness.FULL_BRIGHT);
+                            this.addElement(bone);
+                        } else {
+                            bones.add(Bone.of(bone, node, defaultPose));
+                            this.addElement(bone);
+                        }
+                    }
+                    break;
+                case LOCATOR:
+                    this.locatorMap.put(node.name(), Locator.of(node, defaultPose));
+            }
+        }
+    }
 
-        this.collisionElement.setSize(Math.max(1, Utils.toSlimeSize(Math.min(dimensions.width(), dimensions.height()))));
-        this.sendPacket(new ClientboundBundlePacket(Utils.updateClientInteraction(this.hitboxInteraction, dimensions)));
+    public static Bone headEmissiveBone(ItemDisplayElement element, @NotNull Node node, Pose defaultPose) {
+        Node current = node;
+
+        boolean head;
+        for(head = false; current != null; current = current.parent()) {
+            if (current.headTag()) {
+                head = true;
+                break;
+            }
+        }
+
+        return new Bone(element, node, defaultPose, head) {
+            public void setInvisible(boolean invisible) {
+                // noop
+            }
+        };
+    }
+
+    @Override
+    public void onDimensionsUpdated(EntityDimensions dimensions) {
+        dimensions = dimensions.scale(1.f,0.925f);
+        super.onDimensionsUpdated(dimensions);
     }
 
     private Matrix4f calculateRotationMatrix(float partialTicks) {
@@ -149,10 +201,13 @@ public class SpiderHolder<T extends PolyBetterSpiderEntity> extends LivingEntity
 
         Matrix4f matrix = new Matrix4f();
         matrix.translate(-x, -y, -z);
+
         matrix.rotate(Axis.YP.rotationDegrees(renderOrientation.yaw));
         matrix.rotate(Axis.XP.rotationDegrees(renderOrientation.pitch));
         matrix.rotate(Axis.YP.rotationDegrees(Math.signum(0.5f - orientation.componentY - orientation.componentZ - orientation.componentX) * renderOrientation.yaw));
-        matrix.translate(0, -(Mth.sin(renderOrientation.pitch / -2f * Mth.DEG_TO_RAD)) * 0.25f + 0.25f, 0);
+
+        matrix.translate(0, 0.4f,0);
+
         return matrix;
     }
 

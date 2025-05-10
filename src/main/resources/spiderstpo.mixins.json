@@ -2,11 +2,11 @@
   "minVersion": "0.8",
   "required": true,
   "compatibilityLevel": "JAVA_21",
-  "refmap": "spiderstpo.refmap.json",
   "package": "tcb.spiderstpo.mixins",
   "mixins": [
     "EntityMixin",
     "LivingEntityMixin",
+    "MappedRegistryMixin",
     "MobEntityMixin",
     "access.BlockCollisionsAccess",
     "access.ChunkMapAccess",
