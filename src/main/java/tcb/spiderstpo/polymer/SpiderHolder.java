@@ -4,7 +4,7 @@ import com.mojang.math.Axis;
 import de.tomalbrc.bil.core.holder.entity.living.LivingEntityHolder;
 import de.tomalbrc.bil.core.holder.wrapper.Bone;
 import de.tomalbrc.bil.core.holder.wrapper.DisplayWrapper;
-import de.tomalbrc.bil.core.holder.wrapper.Locator;
+import de.tomalbrc.bil.core.holder.wrapper.ModelBone;
 import de.tomalbrc.bil.core.model.Model;
 import de.tomalbrc.bil.core.model.Node;
 import de.tomalbrc.bil.core.model.Pose;
@@ -30,14 +30,14 @@ import java.util.List;
 public class SpiderHolder<T extends PolyBetterSpiderEntity> extends LivingEntityHolder<T> {
     public static Model MODEL = new CustomBbModelLoader().loadResource(ResourceLocation.fromNamespaceAndPath(SpiderMod.MODID, "spider"));
 
-    DisplayWrapper<ItemDisplayElement> rightFront;
-    DisplayWrapper<ItemDisplayElement> leftFront;
-    DisplayWrapper<ItemDisplayElement> middleRightFront;
-    DisplayWrapper<ItemDisplayElement> middleLeftFront;
-    DisplayWrapper<ItemDisplayElement> middleRightBack;
-    DisplayWrapper<ItemDisplayElement> middleLeftBack;
-    DisplayWrapper<ItemDisplayElement> rightBack;
-    DisplayWrapper<ItemDisplayElement> leftBack;
+    ModelBone rightFront;
+    ModelBone leftFront;
+    ModelBone middleRightFront;
+    ModelBone middleLeftFront;
+    ModelBone middleRightBack;
+    ModelBone middleLeftBack;
+    ModelBone rightBack;
+    ModelBone leftBack;
 
     public static void load() {
     }
@@ -48,15 +48,15 @@ public class SpiderHolder<T extends PolyBetterSpiderEntity> extends LivingEntity
 
     protected void onDataLoaded() {
         super.onDataLoaded();
-        for (Bone bone : this.bones) {
-            if (bone.name().equals("leg1")) rightBack = bone;
-            if (bone.name().equals("leg2")) leftBack = bone;
-            if (bone.name().equals("leg3")) middleRightBack = bone;
-            if (bone.name().equals("leg4")) middleLeftBack = bone;
-            if (bone.name().equals("leg5")) middleRightFront = bone;
-            if (bone.name().equals("leg6")) middleLeftFront = bone;
-            if (bone.name().equals("leg7")) rightFront = bone;
-            if (bone.name().equals("leg8")) leftFront = bone;
+        for (Bone<?> bone : this.bones) {
+            if (bone.name().equals("leg1")) rightBack = (ModelBone) bone;
+            if (bone.name().equals("leg2")) leftBack = (ModelBone) bone;
+            if (bone.name().equals("leg3")) middleRightBack = (ModelBone) bone;
+            if (bone.name().equals("leg4")) middleLeftBack = (ModelBone) bone;
+            if (bone.name().equals("leg5")) middleRightFront = (ModelBone) bone;
+            if (bone.name().equals("leg6")) middleLeftFront = (ModelBone) bone;
+            if (bone.name().equals("leg7")) rightFront = (ModelBone) bone;
+            if (bone.name().equals("leg8")) leftFront = (ModelBone) bone;
         }
     }
 
@@ -138,32 +138,28 @@ public class SpiderHolder<T extends PolyBetterSpiderEntity> extends LivingEntity
     }
 
     @Override
-    protected void setupElements(List<Bone> bones) {
+    protected void setupElements(List<Bone<?>> bones) {
         ObjectIterator<Node> iterator = this.model.nodeMap().values().iterator();
         while (iterator.hasNext()) {
             Node node = iterator.next();
             Pose defaultPose = this.model.defaultPose().get(node.uuid());
-            switch (node.type()) {
-                case BONE:
-                    ItemDisplayElement bone = this.createBoneDisplay(node.modelData());
-                    if (bone != null) {
-                        if (node.name().equals("head2")) {
-                            bones.add(headEmissiveBone(bone, node, defaultPose));
-                            bone.setBrightness(Brightness.FULL_BRIGHT);
-                            this.addElement(bone);
-                        } else {
-                            bones.add(Bone.of(bone, node, defaultPose));
-                            this.addElement(bone);
-                        }
+            if (node.type() == Node.NodeType.BONE) {
+                ItemDisplayElement bone = this.createBoneDisplay(node.modelData());
+                if (bone != null) {
+                    if (node.name().equals("head2")) {
+                        bones.add(headEmissiveBone(bone, node, defaultPose));
+                        bone.setBrightness(Brightness.FULL_BRIGHT);
+                        this.addElement(bone);
+                    } else {
+                        bones.add(ModelBone.of(bone, node, defaultPose));
+                        this.addElement(bone);
                     }
-                    break;
-                case LOCATOR:
-                    this.locatorMap.put(node.name(), Locator.of(node, defaultPose));
+                }
             }
         }
     }
 
-    public static Bone headEmissiveBone(ItemDisplayElement element, @NotNull Node node, Pose defaultPose) {
+    public static Bone<?> headEmissiveBone(ItemDisplayElement element, @NotNull Node node, Pose defaultPose) {
         Node current = node;
 
         boolean head;
@@ -174,7 +170,7 @@ public class SpiderHolder<T extends PolyBetterSpiderEntity> extends LivingEntity
             }
         }
 
-        return new Bone(element, node, defaultPose, head) {
+        return new ModelBone(element, node, defaultPose, head) {
             public void setInvisible(boolean invisible) {
                 // noop
             }
