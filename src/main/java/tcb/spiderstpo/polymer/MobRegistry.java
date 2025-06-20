@@ -18,6 +18,7 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.levelgen.Heightmap;
 import tcb.spiderstpo.common.SpiderMod;
+import tcb.spiderstpo.mixins.access.EntityTypeBuilderAccessor;
 
 import java.util.function.Function;
 
@@ -31,8 +32,8 @@ public class MobRegistry {
                     .sized(1.4F, 0.9F).eyeHeight(0.65F).passengerAttachments(0.765F).clientTrackingRange(8)
     );
 
-
     private static <T extends Entity> EntityType<T> register(ResourceLocation id, EntityType.Builder<T> builder) {
+        ((EntityTypeBuilderAccessor)builder).setLootTable(x -> EntityType.SPIDER.getDefaultLootTable());
         EntityType<T> type = builder.build(ResourceKey.create(Registries.ENTITY_TYPE, id));
         PolymerEntityUtils.registerType(type);
         return Registry.register(BuiltInRegistries.ENTITY_TYPE, id, type);

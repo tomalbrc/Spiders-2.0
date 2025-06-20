@@ -10,6 +10,7 @@
     "MobEntityMixin",
     "access.BlockCollisionsAccess",
     "access.ChunkMapAccess",
+    "access.EntityTypeBuilderAccessor",
     "access.ServerEntityAccess",
     "access.TrackedEntityAccess"
   ],
