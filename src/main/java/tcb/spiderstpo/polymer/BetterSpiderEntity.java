@@ -5,7 +5,6 @@ import net.minecraft.commands.arguments.EntityAnchorArgument;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.Vec3i;
-import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.resources.ResourceLocation;
@@ -39,6 +38,8 @@ import net.minecraft.world.level.material.FluidState;
 import net.minecraft.world.level.pathfinder.Node;
 import net.minecraft.world.level.pathfinder.Path;
 import net.minecraft.world.level.pathfinder.PathType;
+import net.minecraft.world.level.storage.ValueInput;
+import net.minecraft.world.level.storage.ValueOutput;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.phys.shapes.Shapes;
@@ -206,7 +207,7 @@ public class BetterSpiderEntity extends Spider implements IClimberEntity, IAdvan
 
 
     @Override
-    public void onWrite(CompoundTag nbt) {
+    public void onWrite(ValueOutput nbt) {
         nbt.putDouble("AttachmentNormalX", this.attachmentNormal.x);
         nbt.putDouble("AttachmentNormalY", this.attachmentNormal.y);
         nbt.putDouble("AttachmentNormalZ", this.attachmentNormal.z);
@@ -215,12 +216,12 @@ public class BetterSpiderEntity extends Spider implements IClimberEntity, IAdvan
     }
 
     @Override
-    public void onRead(CompoundTag nbt) {
-        if (nbt.contains("AttachedTicks")) {
+    public void onRead(ValueInput nbt) {
+        if (nbt.child("AttachedTicks").isPresent()) {
             this.prevAttachmentNormal = this.attachmentNormal = new Vec3(
-                    nbt.getDouble("AttachmentNormalX").orElseThrow(),
-                    nbt.getDouble("AttachmentNormalY").orElseThrow(),
-                    nbt.getDouble("AttachmentNormalZ").orElseThrow()
+                    nbt.getDoubleOr("AttachmentNormalX", 0),
+                    nbt.getDoubleOr("AttachmentNormalY", 0),
+                    nbt.getDoubleOr("AttachmentNormalZ", 0)
             );
 
             this.attachedTicks = nbt.getInt("AttachedTicks").orElseThrow();

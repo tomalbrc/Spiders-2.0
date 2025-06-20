@@ -1,9 +1,10 @@
 package tcb.spiderstpo.common.entity.mob;
 
-import net.minecraft.nbt.CompoundTag;
+import net.minecraft.world.level.storage.ValueInput;
+import net.minecraft.world.level.storage.ValueOutput;
 
 public interface IEntityReadWriteHook {
-    void onRead(CompoundTag nbt);
+    void onRead(ValueInput nbt);
 
-    void onWrite(CompoundTag nbt);
+    void onWrite(ValueOutput nbt);
 }

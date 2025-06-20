@@ -3,12 +3,13 @@ package tcb.spiderstpo.mixins;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import net.minecraft.core.BlockPos;
-import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityDimensions;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.MoverType;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.storage.ValueInput;
+import net.minecraft.world.level.storage.ValueOutput;
 import net.minecraft.world.phys.Vec3;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -81,25 +82,25 @@ public abstract class EntityMixin implements IEntityMovementHook, IEntityReadWri
 
     @Inject(method = "load", at = @At(
             value = "INVOKE",
-            target = "Lnet/minecraft/world/entity/Entity;readAdditionalSaveData(Lnet/minecraft/nbt/CompoundTag;)V",
+            target = "Lnet/minecraft/world/entity/Entity;readAdditionalSaveData(Lnet/minecraft/world/level/storage/ValueInput;)V",
             shift = At.Shift.AFTER
     ))
-    private void onRead(CompoundTag nbt, CallbackInfo ci) {
-        this.onRead(nbt);
+    private void onRead(ValueInput valueInput, CallbackInfo ci) {
+        this.onRead(valueInput);
     }
 
     @Override
-    public void onRead(CompoundTag nbt) { }
+    public void onRead(ValueInput nbt) { }
 
     @Inject(method = "saveWithoutId", at = @At(
             value = "INVOKE",
-            target = "Lnet/minecraft/world/entity/Entity;addAdditionalSaveData(Lnet/minecraft/nbt/CompoundTag;)V",
+            target = "Lnet/minecraft/world/entity/Entity;addAdditionalSaveData(Lnet/minecraft/world/level/storage/ValueOutput;)V",
             shift = At.Shift.AFTER
     ))
-    private void onWrite(CompoundTag nbt, CallbackInfoReturnable<CompoundTag> ci) {
-        this.onWrite(nbt);
+    private void onWrite(ValueOutput valueOutput, CallbackInfo ci) {
+        this.onWrite(valueOutput);
     }
 
     @Override
-    public void onWrite(CompoundTag nbt) { }
+    public void onWrite(ValueOutput nbt) { }
 }
