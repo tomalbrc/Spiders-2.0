@@ -1,6 +1,7 @@
 package tcb.spiderstpo.polymer;
 
 import com.mojang.math.Axis;
+import de.tomalbrc.bil.core.element.PerPlayerItemDisplayElement;
 import de.tomalbrc.bil.core.holder.entity.living.LivingEntityHolder;
 import de.tomalbrc.bil.core.holder.wrapper.Bone;
 import de.tomalbrc.bil.core.holder.wrapper.DisplayWrapper;
@@ -8,10 +9,10 @@ import de.tomalbrc.bil.core.holder.wrapper.ModelBone;
 import de.tomalbrc.bil.core.model.Model;
 import de.tomalbrc.bil.core.model.Node;
 import de.tomalbrc.bil.core.model.Pose;
-import eu.pb4.polymer.virtualentity.api.elements.ItemDisplayElement;
 import it.unimi.dsi.fastutil.objects.ObjectIterator;
 import net.minecraft.core.Direction;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.Brightness;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.EntityDimensions;
@@ -73,18 +74,19 @@ public class SpiderHolder<T extends PolyBetterSpiderEntity> extends LivingEntity
         return null;
     }
 
-    public void updateElement(DisplayWrapper<?> display, @Nullable Pose pose) {
+    @Override
+    public void updateElement(ServerPlayer serverPlayer, DisplayWrapper<?> display, @Nullable Pose pose) {
         display.element().setYaw(0);
-        display.element().setInterpolationDuration(2);
+        display.element().setInterpolationDuration(serverPlayer, 2);
         if (pose == null) {
-            this.applyPose(display.getLastPose(), display);
+            this.applyPose(serverPlayer, display.getLastPose(serverPlayer), display);
         } else {
-            this.applyPose(pose, display);
+            this.applyPose(serverPlayer, pose, display);
         }
     }
 
     @Override
-    protected void applyPose(Pose pose, DisplayWrapper<?> display) {
+    protected void applyPose(ServerPlayer serverPlayer, Pose pose, DisplayWrapper<?> display) {
         Node node = getRotationParent(display.node());
         boolean isHead = node != null;
         boolean isDead = this.parent.deathTime > 0;
@@ -104,7 +106,7 @@ public class SpiderHolder<T extends PolyBetterSpiderEntity> extends LivingEntity
                 matrix4f.rotateY(rot.y);
                 matrix4f.rotateZ(rot.x);
             }
-            display.element().setInterpolationDuration(2);
+            display.element().setInterpolationDuration(serverPlayer, 2);
         }
 
         var yy = 0.f;
@@ -133,8 +135,8 @@ public class SpiderHolder<T extends PolyBetterSpiderEntity> extends LivingEntity
 
         matrix4f.scale(pose.readOnlyScale());
 
-        display.element().setTransformation(matrix4f);
-        display.element().startInterpolationIfDirty();
+        display.element().setTransformation(serverPlayer, matrix4f);
+        display.element().startInterpolationIfDirty(serverPlayer);
     }
 
     @Override
@@ -144,7 +146,7 @@ public class SpiderHolder<T extends PolyBetterSpiderEntity> extends LivingEntity
             Node node = iterator.next();
             Pose defaultPose = this.model.defaultPose().get(node.uuid());
             if (node.type() == Node.NodeType.BONE) {
-                ItemDisplayElement bone = this.createBoneDisplay(node.modelData());
+                var bone = this.createBoneDisplay(node.modelData());
                 if (bone != null) {
                     if (node.name().equals("head2")) {
                         bones.add(headEmissiveBone(bone, node, defaultPose));
@@ -159,7 +161,7 @@ public class SpiderHolder<T extends PolyBetterSpiderEntity> extends LivingEntity
         }
     }
 
-    public static Bone<?> headEmissiveBone(ItemDisplayElement element, @NotNull Node node, Pose defaultPose) {
+    public static Bone<?> headEmissiveBone(PerPlayerItemDisplayElement element, @NotNull Node node, Pose defaultPose) {
         Node current = node;
 
         boolean head;
