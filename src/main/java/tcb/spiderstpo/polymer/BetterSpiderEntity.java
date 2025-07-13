@@ -217,16 +217,13 @@ public class BetterSpiderEntity extends Spider implements IClimberEntity, IAdvan
 
     @Override
     public void onRead(ValueInput nbt) {
-        if (nbt.child("AttachedTicks").isPresent()) {
-            this.prevAttachmentNormal = this.attachmentNormal = new Vec3(
-                    nbt.getDoubleOr("AttachmentNormalX", 0),
-                    nbt.getDoubleOr("AttachmentNormalY", 0),
-                    nbt.getDoubleOr("AttachmentNormalZ", 0)
-            );
+        this.prevAttachmentNormal = this.attachmentNormal = new Vec3(
+                nbt.getDoubleOr("AttachmentNormalX", 0),
+                nbt.getDoubleOr("AttachmentNormalY", 0),
+                nbt.getDoubleOr("AttachmentNormalZ", 0)
+        );
 
-            this.attachedTicks = nbt.getInt("AttachedTicks").orElseThrow();
-
-        }
+        this.attachedTicks = nbt.getInt("AttachedTicks").orElseThrow();
 
         this.orientation = this.calculateOrientation(1);
     }

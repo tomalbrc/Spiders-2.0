@@ -47,6 +47,11 @@ public class SpiderHolder<T extends PolyBetterSpiderEntity> extends LivingEntity
         super(parent, MODEL);
     }
 
+    @Override
+    protected void updateElement(ServerPlayer serverPlayer, DisplayWrapper<?> display) {
+        this.updateElement(null, display, display.getDefaultPose());
+    }
+
     protected void onDataLoaded() {
         super.onDataLoaded();
         for (Bone<?> bone : this.bones) {
