@@ -13,10 +13,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.util.Mth;
 import net.minecraft.world.effect.MobEffects;
-import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.EntityType;
-import net.minecraft.world.entity.Mob;
-import net.minecraft.world.entity.MoverType;
+import net.minecraft.world.entity.*;
 import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
@@ -49,6 +46,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
+import org.jspecify.annotations.NonNull;
 import tcb.spiderstpo.common.CollisionSmoothingUtil;
 import tcb.spiderstpo.common.Config;
 import tcb.spiderstpo.common.ModTags;
@@ -79,7 +77,7 @@ public class BetterSpiderEntity extends Spider implements IClimberEntity, IAdvan
         this.lookControl = new ClimberLookController<>(this);
         this.jumpControl = new ClimberJumpController<>(this);
 
-        this.lootTable = EntityType.SPIDER.getDefaultLootTable();
+        this.lootTable = EntityTypes.SPIDER.getDefaultLootTable();
 
         var attr = this.getAttribute(Attributes.FOLLOW_RANGE);
         if (attr != null)
@@ -87,7 +85,7 @@ public class BetterSpiderEntity extends Spider implements IClimberEntity, IAdvan
     }
 
     @Override
-    public void defineSynchedData(SynchedEntityData.Builder builder) {
+    public void defineSynchedData(SynchedEntityData.@NonNull Builder builder) {
         super.defineSynchedData(builder);
         this.pathFinderDebugPreview = Config.getConfig().isPathFinderDebugPreview();
     }
@@ -159,7 +157,7 @@ public class BetterSpiderEntity extends Spider implements IClimberEntity, IAdvan
 
     @Override
     @NotNull
-    protected PathNavigation createNavigation(Level level) {
+    protected PathNavigation createNavigation(@NonNull Level level) {
         BetterSpiderPathNavigator<BetterSpiderEntity> navigate = new BetterSpiderPathNavigator<>(this, level, false);
         navigate.setCanFloat(true);
         return navigate;

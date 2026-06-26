@@ -11,6 +11,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.context.UseOnContext;
@@ -36,16 +37,14 @@ public class VanillaPolymerSpawnEggItem extends PolymerSpawnEggItem {
     @NotNull
     public InteractionResult useOn(UseOnContext useOnContext) {
         Level level = useOnContext.getLevel();
-        if (level.isClientSide()) {
-            return InteractionResult.SUCCESS;
-        } else {
+        if (!level.isClientSide()) {
             ItemStack itemStack = useOnContext.getItemInHand();
             BlockPos blockPos = useOnContext.getClickedPos();
             Direction direction = useOnContext.getClickedFace();
             BlockState blockState = level.getBlockState(blockPos);
             BlockEntity entityType = level.getBlockEntity(blockPos);
             if (entityType instanceof Spawner spawner) {
-                spawner.setEntityId(EntityType.SPIDER, level.getRandom());
+                spawner.setEntityId(EntityTypes.SPIDER, level.getRandom());
                 level.sendBlockUpdated(blockPos, blockState, blockState, 3);
                 level.gameEvent(useOnContext.getPlayer(), GameEvent.BLOCK_CHANGE, blockPos);
                 itemStack.shrink(1);
@@ -57,13 +56,13 @@ public class VanillaPolymerSpawnEggItem extends PolymerSpawnEggItem {
                     blockPos2 = blockPos.relative(direction);
                 }
 
-                EntityType<?> type = this.getType(itemStack);
-                if (type.spawn((ServerLevel)level, itemStack, useOnContext.getPlayer(), blockPos2, EntitySpawnReason.SPAWN_ITEM_USE, true, !Objects.equals(blockPos, blockPos2) && direction == Direction.UP) != null) {
+                EntityType<?> type = getType(itemStack);
+                if (type != null && type.spawn((ServerLevel) level, itemStack, useOnContext.getPlayer(), blockPos2, EntitySpawnReason.SPAWN_ITEM_USE, true, !Objects.equals(blockPos, blockPos2) && direction == Direction.UP) != null) {
                     itemStack.shrink(1);
                     level.gameEvent(useOnContext.getPlayer(), GameEvent.ENTITY_PLACE, blockPos);
                 }
             }
-            return InteractionResult.SUCCESS;
         }
+        return InteractionResult.SUCCESS;
     }
 }

@@ -33,7 +33,7 @@ public class MobRegistry {
     );
 
     private static <T extends Entity> EntityType<T> register(Identifier id, EntityType.Builder<T> builder) {
-        ((EntityTypeBuilderAccessor)builder).setLootTable(x -> EntityType.SPIDER.getDefaultLootTable());
+        ((EntityTypeBuilderAccessor)builder).setLootTable(x -> EntityTypes.SPIDER.getDefaultLootTable());
         EntityType<T> type = builder.build(ResourceKey.create(Registries.ENTITY_TYPE, id));
         PolymerEntityUtils.registerType(type);
         return Registry.register(BuiltInRegistries.ENTITY_TYPE, id, type);
