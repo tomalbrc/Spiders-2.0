@@ -11,7 +11,7 @@ import de.tomalbrc.bil.core.model.Node;
 import de.tomalbrc.bil.core.model.Pose;
 import it.unimi.dsi.fastutil.objects.ObjectIterator;
 import net.minecraft.core.Direction;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.Brightness;
 import net.minecraft.util.Mth;
@@ -29,7 +29,7 @@ import tcb.spiderstpo.common.entity.mob.Orientation;
 import java.util.List;
 
 public class SpiderHolder<T extends PolyBetterSpiderEntity> extends LivingEntityHolder<T> {
-    public static Model MODEL = new CustomBbModelLoader().loadResource(ResourceLocation.fromNamespaceAndPath(SpiderMod.MODID, "spider"));
+    public static Model MODEL = new CustomBbModelLoader().loadResource(Identifier.fromNamespaceAndPath(SpiderMod.MODID, "spider"));
 
     ModelBone rightFront;
     ModelBone leftFront;
@@ -70,7 +70,7 @@ public class SpiderHolder<T extends PolyBetterSpiderEntity> extends LivingEntity
     private Node getRotationParent(Node node) {
         var currentNode = node;
         while (currentNode != null) {
-            if (currentNode.headTag())
+            if (currentNode.tag().isHead())
                 return currentNode;
 
             currentNode = currentNode.parent();
@@ -171,13 +171,13 @@ public class SpiderHolder<T extends PolyBetterSpiderEntity> extends LivingEntity
 
         boolean head;
         for(head = false; current != null; current = current.parent()) {
-            if (current.headTag()) {
+            if (current.tag().isHead()) {
                 head = true;
                 break;
             }
         }
 
-        return new ModelBone(element, node, defaultPose, head) {
+        return new ModelBone(element, node, defaultPose) {
             public void setInvisible(boolean invisible) {
                 // noop
             }

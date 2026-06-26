@@ -14,18 +14,6 @@ import java.io.Reader;
 
 public class CustomBbModelLoader extends BbModelLoader {
     @Override
-    protected void postProcess(BbModel model) {
-        super.postProcess(model);
-
-        for (BbElement element : model.elements) {
-            if (element.name.endsWith("_e")) {
-                element.shade = false;
-                element.lightEmission = 15;
-            }
-        }
-    }
-
-    @Override
     public Model load(InputStream input, @NotNull String name) throws JsonParseException {
         try (Reader reader = new InputStreamReader(input)) {
             BbModel model = GSON.fromJson(reader, BbModel.class);
@@ -38,7 +26,6 @@ public class CustomBbModelLoader extends BbModelLoader {
             }
 
             model.modelIdentifier = ModelLoader.normalizedModelId(model.modelIdentifier);
-            this.postProcess(model);
             return new CustomBbModelImporter(model).importModel();
         } catch (Throwable throwable) {
             throw new JsonParseException("Failed to parse: " + name, throwable);

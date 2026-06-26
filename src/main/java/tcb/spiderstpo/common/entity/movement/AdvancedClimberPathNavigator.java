@@ -3,7 +3,6 @@ package tcb.spiderstpo.common.entity.movement;
 import com.google.common.collect.ImmutableSet;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
-import net.minecraft.network.protocol.game.DebugPackets;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.Mob;
@@ -100,7 +99,7 @@ public class AdvancedClimberPathNavigator<T extends Mob & IClimberEntity> extend
                 }
             }
 
-            DebugPackets.sendPathFindingPacket(this.level, this.mob, this.path, this.maxDistanceToWaypoint);
+            //DebugPackets.sendPathFindingPacket(this.level, this.mob, this.path, this.maxDistanceToWaypoint);
 
             if (!this.isDone()) {
                 Node targetPoint = this.path.getNode(this.path.getNextNodeIndex());
@@ -434,7 +433,7 @@ public class AdvancedClimberPathNavigator<T extends Mob & IClimberEntity> extend
                             return false;
                         }
 
-                        if (nodeType == PathType.DAMAGE_FIRE || nodeType == PathType.DANGER_FIRE || nodeType == PathType.DAMAGE_OTHER) {
+                        if (nodeType == PathType.DAMAGE_CAUTIOUS || nodeType == PathType.DAMAGING || nodeType == PathType.DAMAGING_IN_NEIGHBOR) {
                             return false;
                         }
                     }

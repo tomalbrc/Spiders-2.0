@@ -1,15 +1,16 @@
 package tcb.spiderstpo.polymer;
 
 import eu.pb4.polymer.core.api.item.PolymerSpawnEggItem;
+import net.fabricmc.fabric.api.networking.v1.context.PacketContext;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.core.HolderLookup;
 import net.minecraft.core.component.DataComponents;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.entity.EntityType;
-import net.minecraft.world.entity.Mob;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.context.UseOnContext;
@@ -19,24 +20,23 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.gameevent.GameEvent;
 import org.jetbrains.annotations.NotNull;
-import xyz.nucleoid.packettweaker.PacketContext;
 
 import java.util.Objects;
 
 public class VanillaPolymerSpawnEggItem extends PolymerSpawnEggItem {
-    public VanillaPolymerSpawnEggItem(EntityType<? extends Mob> type, Item visualItem, Properties settings) {
-        super(type, visualItem, settings);
+    public VanillaPolymerSpawnEggItem(Item visualItem, Properties settings) {
+        super(visualItem, settings);
     }
 
     @Override
-    public ResourceLocation getPolymerItemModel(ItemStack itemStack, PacketContext context) {
+    public Identifier getPolymerItemModel(ItemStack itemStack, PacketContext context, HolderLookup.Provider provider) {
         return this.getPolymerItem(itemStack, context).getDefaultInstance().get(DataComponents.ITEM_MODEL);
     }
 
     @NotNull
     public InteractionResult useOn(UseOnContext useOnContext) {
         Level level = useOnContext.getLevel();
-        if (level.isClientSide) {
+        if (level.isClientSide()) {
             return InteractionResult.SUCCESS;
         } else {
             ItemStack itemStack = useOnContext.getItemInHand();
@@ -57,7 +57,7 @@ public class VanillaPolymerSpawnEggItem extends PolymerSpawnEggItem {
                     blockPos2 = blockPos.relative(direction);
                 }
 
-                EntityType<?> type = this.getType(level.registryAccess(), itemStack);
+                EntityType<?> type = this.getType(itemStack);
                 if (type.spawn((ServerLevel)level, itemStack, useOnContext.getPlayer(), blockPos2, EntitySpawnReason.SPAWN_ITEM_USE, true, !Objects.equals(blockPos, blockPos2) && direction == Direction.UP) != null) {
                     itemStack.shrink(1);
                     level.gameEvent(useOnContext.getPlayer(), GameEvent.ENTITY_PLACE, blockPos);

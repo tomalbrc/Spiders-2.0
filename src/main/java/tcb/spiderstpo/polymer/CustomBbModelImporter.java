@@ -1,6 +1,7 @@
 package tcb.spiderstpo.polymer;
 
 import de.tomalbrc.bil.core.model.Node;
+import de.tomalbrc.bil.file.bbmodel.BbElement;
 import de.tomalbrc.bil.file.bbmodel.BbModel;
 import de.tomalbrc.bil.file.bbmodel.BbOutliner;
 import de.tomalbrc.bil.file.bbmodel.BbTexture;
@@ -14,6 +15,18 @@ import java.util.UUID;
 public class CustomBbModelImporter extends BbModelImporter {
     public CustomBbModelImporter(BbModel model) {
         super(model);
+    }
+
+    @Override
+    protected void postProcess(BbModel model) {
+        super.postProcess(model);
+
+        for (BbElement element : model.elements) {
+            if (element.name.endsWith("_e")) {
+                element.shade = false;
+                element.lightEmission = 15;
+            }
+        }
     }
 
     @Override

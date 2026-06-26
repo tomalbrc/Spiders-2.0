@@ -1,7 +1,7 @@
 {
   "minVersion": "0.8",
   "required": true,
-  "compatibilityLevel": "JAVA_21",
+  "compatibilityLevel": "JAVA_25",
   "package": "tcb.spiderstpo.mixins",
   "mixins": [
     "EntityMixin",

@@ -973,16 +973,16 @@ public class AdvancedWalkNodeProcessor extends WalkNodeEvaluator {
                     PathType offsetNodeType = getRawPathNodeTypeCached(rawPathNodeTypeCache, blockaccessIn, pos);
                     nodeType = offsetNodeType != PathType.WALKABLE && offsetNodeType != PathType.OPEN && offsetNodeType != PathType.WATER && offsetNodeType != PathType.LAVA ? PathType.WALKABLE : PathType.OPEN;
 
-                    if(offsetNodeType == PathType.DAMAGE_FIRE) {
-                        nodeType = PathType.DAMAGE_FIRE;
+                    if(offsetNodeType == PathType.DAMAGE_CAUTIOUS) {
+                        nodeType = PathType.DAMAGE_CAUTIOUS;
                     }
 
-                    if(offsetNodeType == PathType.DANGER_OTHER) {
-                        nodeType = PathType.DANGER_OTHER;
+                    if(offsetNodeType == PathType.DAMAGING) {
+                        nodeType = PathType.DAMAGING;
                     }
 
-                    if(offsetNodeType == PathType.DAMAGE_OTHER) {
-                        nodeType = PathType.DAMAGE_OTHER;
+                    if(offsetNodeType == PathType.DAMAGING_IN_NEIGHBOR) {
+                        nodeType = PathType.DAMAGING_IN_NEIGHBOR;
                     }
 
                     if(offsetNodeType == PathType.STICKY_HONEY) {

@@ -7,7 +7,7 @@ import net.minecraft.core.Direction;
 import net.minecraft.core.Vec3i;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.SynchedEntityData;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ChunkMap;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.BlockTags;
@@ -23,9 +23,9 @@ import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.ai.goal.*;
 import net.minecraft.world.entity.ai.goal.target.HurtByTargetGoal;
 import net.minecraft.world.entity.ai.navigation.PathNavigation;
-import net.minecraft.world.entity.animal.IronGolem;
+import net.minecraft.world.entity.animal.golem.IronGolem;
 import net.minecraft.world.entity.animal.armadillo.Armadillo;
-import net.minecraft.world.entity.monster.Spider;
+import net.minecraft.world.entity.monster.spider.Spider;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.CollisionGetter;
@@ -64,9 +64,9 @@ import java.util.Optional;
 import java.util.function.Predicate;
 
 public class BetterSpiderEntity extends Spider implements IClimberEntity, IAdvancedPathFindingEntity, IEntityReadWriteHook, IMobEntityTickHook, ILivingEntityLookAtHook, ILivingEntityRotationHook, ILivingEntityDataManagerHook, ILivingEntityJumpHook, ILivingEntityTravelHook, IEntityMovementHook {
-    public static final ResourceLocation ID = ResourceLocation.fromNamespaceAndPath(SpiderMod.MODID, "spider");
+    public static final Identifier ID = Identifier.fromNamespaceAndPath(SpiderMod.MODID, "spider");
 
-    private static final AttributeModifier FOLLOW_RANGE_INCREASE = new AttributeModifier(ResourceLocation.fromNamespaceAndPath(SpiderMod.MODID, "spider_follow_range_increase"), 8.0D, AttributeModifier.Operation.ADD_VALUE);
+    private static final AttributeModifier FOLLOW_RANGE_INCREASE = new AttributeModifier(Identifier.fromNamespaceAndPath(SpiderMod.MODID, "spider_follow_range_increase"), 8.0D, AttributeModifier.Operation.ADD_VALUE);
     private boolean pathFinderDebugPreview;
 
     public BetterSpiderEntity(EntityType<? extends Spider> type, Level worldIn) {
@@ -449,7 +449,7 @@ public class BetterSpiderEntity extends Spider implements IClimberEntity, IAdvan
     public void onTick() {
 
 
-        if (!this.level().isClientSide && this.level() instanceof ServerLevel) {
+        if (!this.level().isClientSide() && this.level() instanceof ServerLevel) {
             ChunkMap.TrackedEntity entityTracker = ((ServerLevel) this.level()).getChunkSource().chunkMap.entityMap.get(this.getId());
 
             //Prevent premature syncing of position causing overly smoothed movement
@@ -828,7 +828,7 @@ public class BetterSpiderEntity extends Spider implements IClimberEntity, IAdvan
                 this.setDeltaMovement(this.getDeltaMovement().add(boost));
             }
 
-            this.hasImpulse = true;
+            this.setIgnoreFallDamageFromCurrentImpulse(true, position());
 
             return true;
         }
