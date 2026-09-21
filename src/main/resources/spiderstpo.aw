@@ -5,7 +5,7 @@ accessible field net/minecraft/server/level/ChunkMap entityMap Lit/unimi/dsi/fas
 accessible field net/minecraft/server/level/ChunkMap$TrackedEntity serverEntity Lnet/minecraft/server/level/ServerEntity;
 
 accessible field net/minecraft/server/level/ServerEntity tickCount I
-accessible field net/minecraft/server/level/ServerEntity updateInterval I
+accessible field net/minecraft/server/level/ServerEntity updateInterval Lnet/minecraft/world/entity/UpdateInterval;
 
 accessible class net/minecraft/world/entity/monster/spider/Spider$SpiderTargetGoal
 accessible class net/minecraft/world/entity/monster/spider/Spider$SpiderAttackGoal

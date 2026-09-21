@@ -451,7 +451,8 @@ public class BetterSpiderEntity extends Spider implements IClimberEntity, IAdvan
             ChunkMap.TrackedEntity entityTracker = ((ServerLevel) this.level()).getChunkSource().chunkMap.entityMap.get(this.getId());
 
             //Prevent premature syncing of position causing overly smoothed movement
-            if (entityTracker != null && entityTracker.serverEntity.tickCount % entityTracker.serverEntity.updateInterval == 0) {
+            var tc = entityTracker.serverEntity.tickCount;
+            if (tc % entityTracker.serverEntity.updateInterval.nextInterval(tc) == 0) {
                 Orientation orientation = this.getOrientation();
                 if (this.shouldTrackPathingTargets()) {
                     if (this.xxa != 0) {
@@ -899,7 +900,7 @@ public class BetterSpiderEntity extends Spider implements IClimberEntity, IAdvan
             float slipperiness = 0.91f;
 
             if (this.onGround()) {
-                BlockPos offsetPos = new BlockPos(this.blockPosition()).relative(groundDirection.getLeft());
+                BlockPos offsetPos = this.blockPosition().relative(groundDirection.getLeft());
                 slipperiness = this.getBlockSlipperiness(offsetPos);
             }
 
@@ -972,7 +973,7 @@ public class BetterSpiderEntity extends Spider implements IClimberEntity, IAdvan
         if (this.onGround()) {
             this.fallDistance = 0;
 
-            BlockPos offsetPos = new BlockPos(blockPosition()).relative(groundDirection.getLeft());
+            BlockPos offsetPos = this.blockPosition().relative(groundDirection.getLeft());
             slipperiness = this.getBlockSlipperiness(offsetPos);
         }
 
