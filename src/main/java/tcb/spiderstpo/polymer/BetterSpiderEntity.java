@@ -445,10 +445,11 @@ public class BetterSpiderEntity extends Spider implements IClimberEntity, IAdvan
 
     @Override
     public void onTick() {
-
-
         if (!this.level().isClientSide() && this.level() instanceof ServerLevel) {
-            ChunkMap.TrackedEntity entityTracker = ((ServerLevel) this.level()).getChunkSource().chunkMap.entityMap.get(this.getId());
+            ChunkMap.@Nullable TrackedEntity entityTracker = ((ServerLevel) this.level()).getChunkSource().chunkMap.entityMap.get(this.getId());
+            if (entityTracker == null) {
+                return;
+            }
 
             //Prevent premature syncing of position causing overly smoothed movement
             var tc = entityTracker.serverEntity.tickCount;

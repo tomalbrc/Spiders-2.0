@@ -1,6 +1,7 @@
 package tcb.spiderstpo.mixins.access;
 
 import net.minecraft.server.level.ServerEntity;
+import net.minecraft.world.entity.UpdateInterval;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.gen.Accessor;
 
@@ -11,5 +12,5 @@ public interface ServerEntityAccess {
     int getTickCount();
 
     @Accessor
-    int getUpdateInterval();
+    UpdateInterval getUpdateInterval();
 }
